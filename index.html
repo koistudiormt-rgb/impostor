@@ -31,12 +31,11 @@
        1. MOTOR DE TEMAS (PREMIUM DARK UI MULTICOLOR)
        ======================================================= */
     :root {
-      /* Tema Padrão (Animais): Azul Cyan e Roxo */
       --color-glow-1: #6366f1; /* Indigo */
       --color-glow-2: #a855f7; /* Purple */
       --color-accent: #8b5cf6; 
       --bg-base: #09090b; /* Zinc 950 */
-      --glass-bg: rgba(24, 24, 27, 0.6); /* Zinc 900 com opacidade */
+      --glass-bg: rgba(24, 24, 27, 0.6); 
       --glass-border: rgba(255, 255, 255, 0.08);
       --pattern-url: none;
     }
@@ -322,7 +321,7 @@
           try { await auth.signInAnonymously(); } 
           catch (err) { 
               console.error(err);
-              setErrorMsg("Erro ao conectar no banco de dados. Verifique a Autenticação Anônima no Firebase."); 
+              setErrorMsg("Erro ao conectar no banco de dados."); 
           }
         };
         initAuth();
@@ -336,14 +335,42 @@
         const unsubscribe = roomRef.onSnapshot((snapshot) => {
           if (snapshot.exists) setRoom(snapshot.data());
           else { setRoom(null); setCurrentRoomId(null); setErrorMsg("Sala fechada ou inexistente."); }
-        }, (error) => {
-            console.error(error);
-            setErrorMsg("Erro de permissão no Firebase. Verifique as regras do Firestore.");
         });
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
-      const handleNextPhaseFromDiscussion = async (currentRoom, state) => {
+      // FUNÇÃO MESTRE: EVITA PULO DE JOGADORES (CORREÇÃO DE BUG)
+      const executeTurnAdvance = async (roomId, targetUid, hint = null) => {
+          const roomRef = getRoomRef(roomId);
+          const doc = await roomRef.get();
+          const d = doc.data();
+          const state = d.gameState;
+
+          // Proteção contra Condição de Corrida: Se não for mais o turno desse jogador, não faça nada.
+          if (state.currentTurnIndex >= state.turnOrder.length || state.turnOrder[state.currentTurnIndex] !== targetUid) return;
+
+          const updates = {};
+          if (hint) {
+              updates['gameState.hints'] = { ...state.hints, [targetUid]: hint };
+              const updatedAllHints = { ...state.allHints };
+              updatedAllHints[targetUid] = [...(updatedAllHints[targetUid] || []), hint];
+              updates['gameState.allHints'] = updatedAllHints;
+          }
+
+          const nextIndex = state.currentTurnIndex + 1;
+          updates['gameState.currentTurnIndex'] = nextIndex;
+
+          if (nextIndex >= state.turnOrder.length) {
+              updates.status = 'discussing'; // Usaremos a tela de discussing para revisão
+              updates['gameState.phaseDeadline'] = Date.now() + 10000; // FIXO: 10 Segundos de animação e revisão
+          } else {
+              updates['gameState.turnDeadline'] = Date.now() + (d.settings.hintTime * 1000);
+          }
+
+          await roomRef.update(updates);
+      };
+
+      const handleNextPhaseFromReview = async (currentRoom, state) => {
           const roomRef = getRoomRef(currentRoom.id);
           if (state.currentRound < state.totalRounds) {
               await roomRef.update({
@@ -378,30 +405,22 @@
                 if ((state.turnDeadline - now) < (turnDuration - 3000)) {
                     const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem"];
                     const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
-                    const roomRef = getRoomRef(room.id);
-                    const doc = await roomRef.get();
-                    const d = doc.data();
-                    if (!d.gameState.hints[currentUid]) {
-                        const newHints = { ...d.gameState.hints, [currentUid]: botHint };
-                        const updatedAllHints = { ...d.gameState.allHints };
-                        updatedAllHints[currentUid] = [...(updatedAllHints[currentUid] || []), botHint];
-                        await roomRef.update({ 'gameState.hints': newHints, 'gameState.allHints': updatedAllHints });
-                        await advanceTurn(d, { ...d.gameState, hints: newHints, allHints: updatedAllHints });
-                    }
+                    await executeTurnAdvance(room.id, currentUid, botHint);
                 }
             } else if (now >= state.turnDeadline && !isBot) {
-                await advanceTurn(room, state);
+                // O tempo da pessoa real esgotou
+                await executeTurnAdvance(room.id, currentUid, null);
             }
           } 
           else if (room.status === 'discussing' && state?.phaseDeadline) {
+            // Tempo dos 10 segundos da revisão acabou
             if (now >= state.phaseDeadline) {
-                await handleNextPhaseFromDiscussion(room, state);
+                await handleNextPhaseFromReview(room, state);
             }
           } 
           else if (room.status === 'voting') {
              if (state?.voteDeadline && now >= state.voteDeadline) {
-                 const roomRef = getRoomRef(room.id);
-                 await roomRef.update({ status: 'finished' });
+                 await getRoomRef(room.id).update({ status: 'finished' });
              }
 
              const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
@@ -434,7 +453,8 @@
         const roomRef = getRoomRef(newRoomId);
         const initialData = {
           id: newRoomId, hostId: user.uid, status: 'lobby',
-          settings: { categoryPreset: 'Animais', hintTime: 15, discussTime: 60, voteTime: 60, impostorsCount: 1, roundsCount: 1 },
+          // O tempo de review (antigo discuss) agora é fixo no código, deixamos apenas os configuráveis aqui
+          settings: { categoryPreset: 'Animais', hintTime: 15, voteTime: 60, impostorsCount: 1, roundsCount: 1 },
           players: { [user.uid]: { name: playerName, isHost: true } },
           usedWords: [], 
           gameState: null
@@ -549,38 +569,11 @@
         setErrorMsg('');
       };
 
-      const advanceTurn = async (currentRoom, state) => {
-        const roomRef = getRoomRef(currentRoom.id);
-        const nextIndex = state.currentTurnIndex + 1;
-        
-        if (nextIndex >= state.turnOrder.length) {
-          await roomRef.update({
-            status: 'discussing',
-            'gameState.currentTurnIndex': nextIndex,
-            'gameState.phaseDeadline': Date.now() + (currentRoom.settings.discussTime * 1000)
-          });
-        } else {
-          await roomRef.update({
-            'gameState.currentTurnIndex': nextIndex,
-            'gameState.turnDeadline': Date.now() + (currentRoom.settings.hintTime * 1000)
-          });
-        }
-      };
-
       const submitHint = async (hint) => {
         if (!hint.trim()) return;
-        const roomRef = getRoomRef(room.id);
-        
-        const updatedHints = { ...room.gameState.hints, [user.uid]: hint };
-        const updatedAllHints = { ...room.gameState.allHints };
-        updatedAllHints[user.uid] = [...(updatedAllHints[user.uid] || []), hint];
-
-        await roomRef.update({ 'gameState.hints': updatedHints, 'gameState.allHints': updatedAllHints });
-        const state = { ...room.gameState, hints: updatedHints, allHints: updatedAllHints };
-        await advanceTurn(room, state);
+        // Delega o avanço para a nossa função que previne os bugs
+        await executeTurnAdvance(room.id, user.uid, hint);
       };
-
-      const skipDiscussion = async () => await handleNextPhaseFromDiscussion(room, room.gameState);
 
       const submitVote = async (targetUid) => {
         const roomRef = getRoomRef(room.id);
@@ -662,7 +655,7 @@
                 <GameContainer 
                     room={room} user={user} startGame={startGame} submitHint={submitHint} submitVote={submitVote} 
                     restartGame={restartGame} updateSetting={updateSetting} handleAddBot={handleAddBot} handleRemoveBot={handleRemoveBot}
-                    skipDiscussion={skipDiscussion} isStartingGame={isStartingGame} categoryTheme={categoryTheme}
+                    isStartingGame={isStartingGame} categoryTheme={categoryTheme}
                 />
               )}
             </div>
@@ -676,7 +669,7 @@
       switch (props.room.status) {
         case 'lobby': return <LobbyScreen {...props} isHost={props.room.hostId === props.user.uid} />;
         case 'hinting': return <HintingScreen {...props} />;
-        case 'discussing': return <DiscussingScreen {...props} isHost={props.room.hostId === props.user.uid} />;
+        case 'discussing': return <ReviewScreen {...props} />;
         case 'voting': return <VotingScreen {...props} />;
         case 'finished': return <ResultScreen {...props} isHost={props.room.hostId === props.user.uid} />;
         default: return <div>Erro de estado.</div>;
@@ -822,16 +815,16 @@
 
                 <div className="flex gap-4 mt-2">
                   <div className="flex-1">
-                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Tempo: Debate</label>
-                    <select disabled={!isHost} value={room.settings.discussTime || 60} onChange={e => updateSetting('discussTime', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
+                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Tempo da Dica</label>
+                    <select disabled={!isHost} value={room.settings.hintTime || 15} onChange={e => updateSetting('hintTime', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
+                      <option value={10}>10s</option>
+                      <option value={15}>15s</option>
+                      <option value={20}>20s</option>
                       <option value={30}>30s</option>
-                      <option value={60}>60s</option>
-                      <option value={90}>90s</option>
-                      <option value={120}>120s</option>
                     </select>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Tempo: Votação</label>
+                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Tempo p/ Votar</label>
                     <select disabled={!isHost} value={room.settings.voteTime || 60} onChange={e => updateSetting('voteTime', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
                       <option value={30}>30s</option>
                       <option value={45}>45s</option>
@@ -962,68 +955,56 @@
       );
     }
 
-    function DiscussingScreen({ room, user, isHost, skipDiscussion }) {
+    // NOVA TELA DE REVISÃO COM ANIMAÇÕES DOS 10 SEGUNDOS
+    function ReviewScreen({ room }) {
       const state = room.gameState;
-      const [timeLeft, setTimeLeft] = useState(room.settings.discussTime);
+      const [timeLeft, setTimeLeft] = useState(10);
       const themeName = room.settings.categoryPreset;
+      const isLastRound = state.currentRound === state.totalRounds;
       
       useEffect(() => {
-        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.phaseDeadline - Date.now()) / 1000))), 1000);
+        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.phaseDeadline - Date.now()) / 1000))), 500);
         return () => clearInterval(int);
       }, [state.phaseDeadline]);
 
-      const isLastRound = state.currentRound === state.totalRounds;
-
       return (
         <div className="flex-1 flex flex-col relative animate-in slide-in-from-bottom-8 duration-500">
-          <div className="pt-6 pb-8 text-center relative z-10 flex flex-col items-center">
-            <div className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-               <i className="ph-fill ph-chats-teardrop text-white text-[32px]"></i>
+          <div className="pt-6 pb-6 text-center relative z-10 flex flex-col items-center">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--color-accent)] mb-1">
+               {isLastRound ? 'Fim das Rodadas' : 'Revisão Rápida'}
+            </h2>
+            <div className={`text-4xl font-black font-mono tracking-tighter drop-shadow-md text-white mb-2`}>
+              00:{timeLeft.toString().padStart(2, '0')}
             </div>
-            <h2 className="text-sm font-bold uppercase tracking-widest text-white/60 mb-1">Debate</h2>
-            <div className={`text-6xl font-black font-mono tracking-tighter drop-shadow-md ${timeLeft <= 30 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
-              {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{(timeLeft % 60).toString().padStart(2, '0')}
-            </div>
-            {isHost && (
-                <button onClick={skipDiscussion} className="mt-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors">
-                   {isLastRound ? <><i className="ph-bold ph-check-circle text-lg"></i> Iniciar Votação</> : <><i className="ph-bold ph-fast-forward text-lg"></i> Próxima Rodada</>}
-                </button>
-            )}
+            <p className="text-white/50 text-[11px] font-semibold uppercase tracking-widest">
+               {isLastRound ? 'Preparando votação...' : 'Aguardando próxima rodada...'}
+            </p>
           </div>
 
           <div className="glass-card flex-1 w-full p-6 relative flex flex-col">
-            <h3 className="font-semibold text-white/50 text-xs mb-4">
-               Revisão: <span className="text-white">{themeName}</span> (Rodada {state.currentRound})
-            </h3>
+            <div className="flex items-center gap-2 mb-6">
+                <i className="ph-fill ph-eye text-[var(--color-accent)] text-xl"></i>
+                <h3 className="font-semibold text-white/50 text-xs">
+                   O que eles disseram: <span className="text-white">Rodada {state.currentRound}</span>
+                </h3>
+            </div>
             
-            <div className="grid gap-4 overflow-y-auto no-scrollbar pb-10">
-              {Object.entries(room.players).map(([uid, player]) => {
-                const pastHints = state.allHints?.[uid] || [];
+            <div className="grid gap-3 overflow-y-auto no-scrollbar pb-10">
+              {state.turnOrder.map((uid, index) => {
+                const player = room.players[uid];
                 const currentHint = state.hints?.[uid] || "---";
 
-                return (
-                  <div key={uid} className="bg-black/30 p-4 rounded-3xl border border-white/5 flex flex-col gap-3">
-                    <div className="flex justify-between items-center gap-2">
-                      <div className="font-semibold text-white/80 text-sm">{player.name}</div>
-                      
-                      <div className="text-[10px] text-[var(--color-accent)] font-bold uppercase tracking-wider bg-[var(--color-accent)]/10 px-3 py-1.5 rounded-full border border-[var(--color-accent)]/20">
-                          Avaliando...
-                      </div>
-                    </div>
+                // O truque da animação em cascata
+                const delay = index * 250; 
 
-                    <div>
-                        <div className="text-white font-medium text-lg">"{currentHint}"</div>
-                        
-                        {pastHints.length > 1 && (
-                            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/5">
-                                {pastHints.slice(0, -1).map((h, i) => (
-                                    <div key={i} className="text-[10px] bg-white/10 text-white/70 px-2 py-1 rounded-md font-medium flex gap-1 items-center">
-                                       <span className="opacity-50">R{i+1}</span> {h}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                return (
+                  <div 
+                    key={uid} 
+                    className="bg-black/30 p-4 rounded-3xl border border-white/5 flex flex-col animate-in fade-in slide-in-from-right-8 fill-mode-both"
+                    style={{ animationDelay: `${delay}ms`, animationDuration: '400ms' }}
+                  >
+                    <div className="font-semibold text-[var(--color-glow-1)] text-xs mb-1 uppercase tracking-wider">{player.name}</div>
+                    <div className="text-white font-medium text-lg leading-tight">"{currentHint}"</div>
                   </div>
                 );
               })}
