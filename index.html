@@ -354,7 +354,10 @@
                   'gameState.turnDeadline': Date.now() + (currentRoom.settings.hintTime * 1000)
               });
           } else {
-              await roomRef.update({ status: 'voting' });
+              await roomRef.update({ 
+                  status: 'voting',
+                  'gameState.voteDeadline': Date.now() + ((currentRoom.settings.voteTime || 60) * 1000)
+              });
           }
       };
 
@@ -394,28 +397,13 @@
             if (now >= state.phaseDeadline) {
                 await handleNextPhaseFromDiscussion(room, state);
             }
-            const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
-            bots.forEach(botUid => {
-                if (Math.random() < 0.05) { 
-                    const round = state.currentRound;
-                    const targets = Object.keys(room.players).filter(id => id !== botUid && state.hints[id]);
-                    if(targets.length === 0) return;
-                    const target = targets[Math.floor(Math.random() * targets.length)];
-                    const roomRef = getRoomRef(room.id);
-                    roomRef.get().then(doc => {
-                        const d = doc.data();
-                        const currentEval = d.gameState.evaluations || {};
-                        if (!currentEval[round]) currentEval[round] = {};
-                        if (!currentEval[round][target]) currentEval[round][target] = {};
-                        if (!currentEval[round][target][botUid]) {
-                            currentEval[round][target][botUid] = Math.random() > 0.3 ? 1 : -1;
-                            roomRef.update({ 'gameState.evaluations': currentEval });
-                        }
-                    });
-                }
-            });
           } 
           else if (room.status === 'voting') {
+             if (state?.voteDeadline && now >= state.voteDeadline) {
+                 const roomRef = getRoomRef(room.id);
+                 await roomRef.update({ status: 'finished' });
+             }
+
              const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
              bots.forEach(botUid => {
                  if (!state.votes[botUid] && Math.random() < 0.2) { 
@@ -446,7 +434,7 @@
         const roomRef = getRoomRef(newRoomId);
         const initialData = {
           id: newRoomId, hostId: user.uid, status: 'lobby',
-          settings: { categoryPreset: 'Animais', hintTime: 15, discussTime: 120, impostorsCount: 1, roundsCount: 1 },
+          settings: { categoryPreset: 'Animais', hintTime: 15, discussTime: 60, voteTime: 60, impostorsCount: 1, roundsCount: 1 },
           players: { [user.uid]: { name: playerName, isHost: true } },
           usedWords: [], 
           gameState: null
@@ -553,7 +541,7 @@
             word: secretWord, impostorIds: impostorIds, turnOrder: turnOrder,
             currentRound: 1, totalRounds: room.settings.roundsCount || 1,
             currentTurnIndex: 0, turnDeadline: Date.now() + (room.settings.hintTime * 1000),
-            hints: {}, allHints: {}, evaluations: {}, votes: {}
+            hints: {}, allHints: {}, votes: {}
           }
         });
         
@@ -590,19 +578,6 @@
         await roomRef.update({ 'gameState.hints': updatedHints, 'gameState.allHints': updatedAllHints });
         const state = { ...room.gameState, hints: updatedHints, allHints: updatedAllHints };
         await advanceTurn(room, state);
-      };
-
-      const handleEvaluation = async (targetUid, value) => {
-        const currentEval = room.gameState.evaluations || {};
-        const round = room.gameState.currentRound;
-        if (!currentEval[round]) currentEval[round] = {};
-        if (!currentEval[round][targetUid]) currentEval[round][targetUid] = {};
-
-        if (currentEval[round][targetUid][user.uid] === value) delete currentEval[round][targetUid][user.uid]; 
-        else currentEval[round][targetUid][user.uid] = value;
-
-        const roomRef = getRoomRef(room.id);
-        await roomRef.update({ 'gameState.evaluations': currentEval });
       };
 
       const skipDiscussion = async () => await handleNextPhaseFromDiscussion(room, room.gameState);
@@ -687,7 +662,7 @@
                 <GameContainer 
                     room={room} user={user} startGame={startGame} submitHint={submitHint} submitVote={submitVote} 
                     restartGame={restartGame} updateSetting={updateSetting} handleAddBot={handleAddBot} handleRemoveBot={handleRemoveBot}
-                    skipDiscussion={skipDiscussion} handleEvaluation={handleEvaluation} isStartingGame={isStartingGame} categoryTheme={categoryTheme}
+                    skipDiscussion={skipDiscussion} isStartingGame={isStartingGame} categoryTheme={categoryTheme}
                 />
               )}
             </div>
@@ -844,6 +819,27 @@
                     </select>
                   </div>
                 </div>
+
+                <div className="flex gap-4 mt-2">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Tempo: Debate</label>
+                    <select disabled={!isHost} value={room.settings.discussTime || 60} onChange={e => updateSetting('discussTime', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
+                      <option value={30}>30s</option>
+                      <option value={60}>60s</option>
+                      <option value={90}>90s</option>
+                      <option value={120}>120s</option>
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Tempo: Votação</label>
+                    <select disabled={!isHost} value={room.settings.voteTime || 60} onChange={e => updateSetting('voteTime', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
+                      <option value={30}>30s</option>
+                      <option value={45}>45s</option>
+                      <option value={60}>60s</option>
+                      <option value={90}>90s</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-8">
@@ -966,7 +962,7 @@
       );
     }
 
-    function DiscussingScreen({ room, user, isHost, skipDiscussion, handleEvaluation }) {
+    function DiscussingScreen({ room, user, isHost, skipDiscussion }) {
       const state = room.gameState;
       const [timeLeft, setTimeLeft] = useState(room.settings.discussTime);
       const themeName = room.settings.categoryPreset;
@@ -975,17 +971,6 @@
         const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.phaseDeadline - Date.now()) / 1000))), 1000);
         return () => clearInterval(int);
       }, [state.phaseDeadline]);
-
-      const getPlayerScore = (uid) => {
-          let likes = 0, dislikes = 0;
-          Object.values(state.evaluations || {}).forEach(roundEvals => {
-              Object.values(roundEvals[uid] || {}).forEach(val => {
-                  if (val === 1) likes++;
-                  if (val === -1) dislikes++;
-              });
-          });
-          return { likes, dislikes };
-      };
 
       const isLastRound = state.currentRound === state.totalRounds;
 
@@ -1015,21 +1000,14 @@
               {Object.entries(room.players).map(([uid, player]) => {
                 const pastHints = state.allHints?.[uid] || [];
                 const currentHint = state.hints?.[uid] || "---";
-                const isMe = uid === user.uid;
-                const myEvalThisRound = state.evaluations?.[state.currentRound]?.[uid]?.[user.uid];
 
                 return (
                   <div key={uid} className="bg-black/30 p-4 rounded-3xl border border-white/5 flex flex-col gap-3">
                     <div className="flex justify-between items-center gap-2">
                       <div className="font-semibold text-white/80 text-sm">{player.name}</div>
                       
-                      <div className="flex items-center gap-1.5 bg-white/5 rounded-full p-1 border border-white/5">
-                         <button disabled={isMe} onClick={() => handleEvaluation(uid, 1)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isMe ? 'opacity-30' : ''} ${myEvalThisRound === 1 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'text-white/40 hover:bg-white/10 border border-transparent'}`}>
-                            <i className={myEvalThisRound === 1 ? "ph-fill ph-thumbs-up" : "ph-bold ph-thumbs-up"}></i>
-                         </button>
-                         <button disabled={isMe} onClick={() => handleEvaluation(uid, -1)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isMe ? 'opacity-30' : ''} ${myEvalThisRound === -1 ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'text-white/40 hover:bg-white/10 border border-transparent'}`}>
-                            <i className={myEvalThisRound === -1 ? "ph-fill ph-thumbs-down" : "ph-bold ph-thumbs-down"}></i>
-                         </button>
+                      <div className="text-[10px] text-[var(--color-accent)] font-bold uppercase tracking-wider bg-[var(--color-accent)]/10 px-3 py-1.5 rounded-full border border-[var(--color-accent)]/20">
+                          Avaliando...
                       </div>
                     </div>
 
@@ -1058,26 +1036,28 @@
     function VotingScreen({ room, user, submitVote }) {
       const state = room.gameState;
       const myVote = state.votes[user.uid];
+      const [timeLeft, setTimeLeft] = useState(room.settings.voteTime || 60);
 
-      const getPlayerScore = (uid) => {
-          let likes = 0, dislikes = 0;
-          Object.values(state.evaluations || {}).forEach(roundEvals => {
-              Object.values(roundEvals[uid] || {}).forEach(val => {
-                  if (val === 1) likes++;
-                  if (val === -1) dislikes++;
-              });
-          });
-          return { likes, dislikes };
-      };
+      useEffect(() => {
+        if (!state.voteDeadline) return;
+        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.voteDeadline - Date.now()) / 1000))), 1000);
+        return () => clearInterval(int);
+      }, [state.voteDeadline]);
 
       return (
         <div className="flex-1 flex flex-col relative animate-in zoom-in duration-300">
-          <div className="pt-8 pb-8 px-6 text-center text-white relative z-10">
-             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20 border border-red-500/50 mb-3 shadow-[0_0_30px_rgba(239,68,68,0.3)]">
-                <i className="ph-fill ph-crosshair text-red-400 text-3xl"></i>
+          <div className="pt-6 pb-6 px-6 text-center text-white relative z-10">
+             <div className="flex justify-between items-center mb-2">
+               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)] mx-auto">
+                  <i className="ph-fill ph-crosshair text-red-400 text-2xl"></i>
+               </div>
              </div>
              <h2 className="text-2xl font-bold tracking-tight">Votação</h2>
              <p className="text-white/60 text-sm font-medium mt-1">Quem é o Impostor?</p>
+             
+             <div className={`mt-3 inline-block px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 10 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
+                 00:{timeLeft.toString().padStart(2, '0')}
+             </div>
           </div>
 
           <div className="glass-card flex-1 w-full p-6 relative pb-10 overflow-y-auto no-scrollbar">
@@ -1085,18 +1065,11 @@
               {Object.entries(room.players).map(([uid, player]) => {
                 const isSelected = myVote === uid;
                 const isMe = uid === user.uid;
-                const score = getPlayerScore(uid);
-                const trustBalance = score.likes - score.dislikes;
                 
                 return (
                   <button key={uid} disabled={isMe || myVote} onClick={() => submitVote(uid)} className={`relative p-5 rounded-3xl text-center transition-all duration-300 border flex flex-col items-center gap-3 ${isMe ? 'opacity-30 border-white/5 bg-black/20 cursor-not-allowed' : ''} ${!isMe && !myVote ? 'bg-white/5 border-white/10 hover:border-white/30 hover:bg-white/10' : ''} ${isSelected ? 'bg-[var(--color-accent)]/20 border-[var(--color-accent)] shadow-[0_0_20px_rgba(var(--color-accent),0.4)] transform scale-105' : ''} ${myVote && !isSelected && !isMe ? 'opacity-30 border-white/5 bg-transparent' : ''}`}>
                     
-                    <div className="absolute top-3 left-3 flex flex-col gap-1">
-                       {score.likes > 0 && <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1"><i className="ph-fill ph-thumbs-up"></i> {score.likes}</span>}
-                       {score.dislikes > 0 && <span className="text-[10px] font-semibold text-red-400 flex items-center gap-1"><i className="ph-fill ph-thumbs-down"></i> {score.dislikes}</span>}
-                    </div>
-
-                    <div className={`mt-3 w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl transition-colors ${isSelected ? 'bg-[var(--color-accent)] shadow-lg' : trustBalance < 0 ? 'bg-red-500/80' : 'bg-white/10'}`}>
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl transition-colors ${isSelected ? 'bg-[var(--color-accent)] shadow-lg' : 'bg-white/10'}`}>
                       {player.isBot ? <i className="ph-fill ph-robot"></i> : player.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
