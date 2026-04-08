@@ -5,80 +5,300 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>O Infiltrado</title>
 
-  <!-- Tailwind CSS para Estilização -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Phosphor Icons para os Ícones Visuais -->
+  <!-- Google Fonts: Poppins -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Phosphor Icons -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
-  <!-- React & ReactDOM (Versões Standalone) -->
+  <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Babel para compilar o código React dentro do navegador -->
+  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Firebase (Versão Compatível Standalone para não gerar erro de CORS em arquivos locais) -->
+  <!-- Firebase (Compatibilidade) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 
   <style>
-    /* Suaviza a rolagem e remove marcações nativas do navegador */
+    /* =======================================================
+       1. MOTOR DE TEMAS (PREMIUM DARK UI MULTICOLOR)
+       ======================================================= */
+    :root {
+      /* Tema Padrão (Animais): Azul Cyan e Roxo */
+      --color-glow-1: #6366f1; /* Indigo */
+      --color-glow-2: #a855f7; /* Purple */
+      --color-accent: #8b5cf6; 
+      --bg-base: #09090b; /* Zinc 950 */
+      --glass-bg: rgba(24, 24, 27, 0.6); /* Zinc 900 com opacidade */
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --pattern-url: none;
+    }
+
+    .theme-naruto {
+      --color-glow-1: #f97316; 
+      --color-glow-2: #ef4444; 
+      --color-accent: #f97316;
+      --pattern-url: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(25 50 50)'%3E%3Cpath d='M50 25 L54 46 L75 50 L54 54 L50 75 L46 54 L25 50 L46 46 Z' fill='rgba(255,255,255,0.03)'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    .theme-futebol {
+      --color-glow-1: #22c55e; 
+      --color-glow-2: #eab308; 
+      --color-accent: #22c55e;
+      --pattern-url: url("data:image/svg+xml,%3Csvg width='40' height='69' viewBox='0 0 40 69.282' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M40 17.32l-20 11.547L0 17.32V0h40v17.32zm0 34.641l-20 11.547-20-11.547V34.64h40v17.32z' fill='none' stroke='rgba(255,255,255,0.02)' stroke-width='1'/%3E%3C/svg%3E");
+    }
+
+    .theme-comida {
+      --color-glow-1: #f43f5e; 
+      --color-glow-2: #f59e0b; 
+      --color-accent: #f43f5e;
+      --pattern-url: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='4' cy='4' r='2' fill='rgba(255,255,255,0.04)'/%3E%3C/svg%3E");
+    }
+
+    .theme-lugares {
+      --color-glow-1: #0ea5e9; 
+      --color-glow-2: #10b981; 
+      --color-accent: #0ea5e9;
+      --pattern-url: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0V0zm20 20h20v20H20V20zM0 20h20v20H0V20z' fill='none' stroke='rgba(255,255,255,0.02)' stroke-width='1'/%3E%3C/svg%3E");
+    }
+
+    .theme-profissoes {
+      --color-glow-1: #3b82f6; 
+      --color-glow-2: #64748b; 
+      --color-accent: #3b82f6;
+      --pattern-url: url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15 0v30M0 15h30' stroke='rgba(255,255,255,0.03)' stroke-width='1'/%3E%3C/svg%3E");
+    }
+
+    .theme-filmes {
+      --color-glow-1: #e11d48; 
+      --color-glow-2: #d946ef; 
+      --color-accent: #e11d48;
+      --pattern-url: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M-2 18L18 -2' stroke='rgba(255,255,255,0.03)' stroke-width='2'/%3E%3C/svg%3E");
+    }
+
     body { 
       -webkit-font-smoothing: antialiased; 
-      background-color: #f1f5f9; /* Fundo suave para fora do app no desktop */
+      background-color: #000; 
+      color: white;
+      font-family: 'Poppins', sans-serif;
     }
-    /* Esconde barra de rolagem mas permite rolar */
+    
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* =======================================================
+       2. GLASSMORPHISM & EFEITOS DE LUZ
+       ======================================================= */
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    .glass-input {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--glass-border);
+      color: white;
+    }
+    
+    .glass-input:focus {
+      border-color: var(--color-accent);
+      outline: none;
+      box-shadow: 0 0 15px rgba(var(--color-accent), 0.3);
+    }
+
+    .btn-gradient {
+      background: linear-gradient(135deg, var(--color-glow-1), var(--color-glow-2));
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+      transition: all 0.3s ease;
+    }
+    .btn-gradient:hover:not(:disabled) {
+      transform: translateY(-2px);
+      filter: brightness(1.1);
+      box-shadow: 0 8px 25px rgba(var(--color-accent), 0.4);
+    }
+    .btn-gradient:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .bg-orbs {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      overflow: hidden;
+      z-index: -1;
+      background-color: var(--bg-base);
+      transition: background-color 1s ease;
+    }
+    .orb-1 {
+      position: absolute;
+      top: -10%; left: -10%;
+      width: 60vw; height: 60vw;
+      background: radial-gradient(circle, var(--color-glow-1) 0%, transparent 70%);
+      opacity: 0.15;
+      filter: blur(80px);
+      animation: float 15s infinite alternate ease-in-out;
+      transition: background 1s ease;
+    }
+    .orb-2 {
+      position: absolute;
+      bottom: -10%; right: -10%;
+      width: 50vw; height: 50vw;
+      background: radial-gradient(circle, var(--color-glow-2) 0%, transparent 70%);
+      opacity: 0.15;
+      filter: blur(80px);
+      animation: float 20s infinite alternate-reverse ease-in-out;
+      transition: background 1s ease;
+    }
+
+    @keyframes float {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(5%, 5%) scale(1.1); }
+    }
+
+    .pattern-overlay {
+      position: absolute;
+      inset: 0;
+      opacity: 1;
+      background-image: var(--pattern-url);
+      pointer-events: none;
+      transition: background-image 1s ease;
+    }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 1rem center;
+      background-size: 1em;
+    }
+    select option { background: #18181b; color: white; }
+
   </style>
 </head>
-<body class="text-slate-800 font-sans selection:bg-fuchsia-500 selection:text-white">
+<body>
   
   <div id="root"></div>
 
-  <!-- Lógica Principal da Aplicação React -->
   <script type="text/babel" data-presets="react">
-
     // ==========================================================
-    // 1. CONFIGURAÇÃO DO BANCO DE DADOS FIREBASE
+    // 1. CONFIGURAÇÃO DO BANCO DE DADOS (FIREBASE REAL)
     // ==========================================================
-    const envConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-    
-    const myLocalConfig = {
-      apiKey: "",
-      authDomain: "",
-      projectId: "",
-      storageBucket: "",
-      messagingSenderId: "",
-      appId: ""
+    const firebaseConfig = {
+      apiKey: "AIzaSyDctfA2nG4YxPAdJYib74GCYbCl-pYowSY",
+      authDomain: "impostor-game-bd6f7.firebaseapp.com",
+      projectId: "impostor-game-bd6f7",
+      storageBucket: "impostor-game-bd6f7.firebasestorage.app",
+      messagingSenderId: "442485257386",
+      appId: "1:442485257386:web:60d591700c96aab3daccd3",
+      measurementId: "G-WG23M99W62"
     };
 
-    const firebaseConfig = envConfig || myLocalConfig;
-    const isConfigValid = firebaseConfig && firebaseConfig.apiKey !== "";
-
-    if (isConfigValid && !firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
     }
-
-    const auth = isConfigValid ? firebase.auth() : null;
-    const db = isConfigValid ? firebase.firestore() : null;
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'impostor-game-local';
+    
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
     const getRoomRef = (roomId) => {
-        return db.collection('artifacts').doc(appId).collection('public').doc('data').collection('rooms').doc(roomId);
+        return db.collection('rooms').doc(roomId);
     };
 
     // ==========================================================
-    // 2. DICIONÁRIO DE TEMAS
+    // 2. DICIONÁRIO COMPLETO E EXPANDIDO
     // ==========================================================
-    const DICTIONARY = {
-      "Animais": ["Leão", "Elefante", "Girafa", "Pinguim", "Tubarão", "Urso", "Macaco", "Cachorro", "Gato", "Cobra", "Jacaré", "Baleia", "Coruja", "Lobo"],
-      "Comida": ["Pizza", "Hambúrguer", "Sushi", "Lasanha", "Sorvete", "Bolo", "Salada", "Churrasco", "Sopa", "Tacos", "Macarrão", "Coxinha", "Pão de Queijo"],
-      "Profissões": ["Médico", "Professor", "Bombeiro", "Policial", "Engenheiro", "Cozinheiro", "Astronauta", "Pintor", "Músico", "Atleta", "Advogado", "Piloto", "Detetive"],
-      "Lugares": ["Praia", "Montanha", "Escola", "Hospital", "Supermercado", "Cinema", "Parque", "Biblioteca", "Aeroporto", "Estádio", "Museu", "Zoológico", "Fazenda"],
-      "Filmes e Séries": ["Harry Potter", "Star Wars", "Vingadores", "Matrix", "O Senhor dos Anéis", "Stranger Things", "Game of Thrones", "Jurassic Park", "Batman", "Homem-Aranha"]
+    const FALLBACK_DICTIONARY = {
+      "Animais": [
+        "Cachorro", "Gato", "Cavalo", "Vaca", "Porco", "Galinha", "Pato", "Peru", "Coelho", "Ovelha",
+        "Leão", "Tigre", "Elefante", "Girafa", "Zebra", "Urso", "Lobo", "Raposa", "Hiena", "Gorila",
+        "Macaco", "Panda", "Canguru", "Koala", "Camelo", "Cobra", "Lagarto", "Tartaruga", "Jacaré",
+        "Águia", "Coruja", "Falcão", "Pombo", "Papagaio", "Peixe", "Tubarão", "Baleia", "Golfinho",
+        "Formiga", "Abelha", "Borboleta", "Mosquito", "Pinguim", "Urso Polar", "Ornitorrinco", "Rinoceronte",
+        "Hipopótamo", "Crocodilo", "Onça Pintada", "Arara", "Bicho-Preguiça", "Capivara", "Tatu"
+      ],
+      "Comida": [
+        "Pizza", "Hambúrguer", "Batata frita", "Hot dog", "Pastel", "Coxinha", "Empada", "Pão de queijo",
+        "Esfiha", "Kibe", "Arroz", "Feijão", "Macarrão", "Lasanha", "Nhoque", "Churrasco", "Frango grelhado",
+        "Carne assada", "Peixe frito", "Sushi", "Sorvete", "Bolo", "Chocolate", "Brigadeiro", "Pudim",
+        "Açaí", "Tapioca", "Panqueca", "Waffle", "Donut", "Salada", "Omelete", "Sanduíche", "Wrap", "Torta",
+        "Feijoada", "Strogonoff", "Risoto", "Yakisoba", "Ramen", "Banana", "Maçã", "Uva", "Morango", "Manga",
+        "Abacaxi", "Laranja", "Melancia", "Kiwi", "Pera", "Café", "Leite", "Suco", "Refrigerante", "Chá",
+        "Milkshake", "Smoothie", "Água de coco", "Tacos", "Burritos", "Churros", "Macarons", "Croissant",
+        "Guacamole", "Ceviche", "Pão de Alho", "Biscoito", "Sopa", "Salmão"
+      ],
+      "Profissões": [
+        "Médico", "Enfermeiro", "Dentista", "Psicólogo", "Fisioterapeuta", "Professor", "Diretor",
+        "Coordenador", "Pedagogo", "Engenheiro", "Arquiteto", "Programador", "Designer", "Analista",
+        "Advogado", "Juiz", "Promotor", "Policial", "Bombeiro", "Militar", "Segurança", "Motorista",
+        "Piloto", "Mecânico", "Vendedor", "Caixa", "Gerente", "Empresário", "Cozinheiro", "Garçom",
+        "Barista", "Ator", "Cantor", "Influencer", "Jornalista", "Fotógrafo", "Editor", "Cinegrafista",
+        "Personal Trainer", "Nutricionista", "Astronauta", "Cientista", "Detetive", "Veterinário",
+        "Biólogo", "Eletricista", "Encanador", "Carteiro", "Maquiador", "Cabeleireiro", "Músico"
+      ],
+      "Cidade": [
+        "Rio de Janeiro", "São Paulo", "Belo Horizonte", "Brasília", "Salvador", "Curitiba", "Recife",
+        "Fortaleza", "Manaus", "Porto Alegre", "New York", "Paris", "Tokyo", "London", "Dubai", "Roma",
+        "Barcelona", "Madrid", "Lisboa", "Amsterdã", "Berlim", "Moscou", "Pequim", "Seul", "Bangkok",
+        "Cancún", "Miami", "Las Vegas", "Orlando", "Toronto", "Buenos Aires", "Santiago", "Lima", "Bogotá",
+        "Sydney", "Kyoto", "Veneza", "Istambul", "Atenas", "Cairo", "Milão", "Munique", "Viena", "Dublin"
+      ],
+      "País": [
+        "Brasil", "Argentina", "Chile", "Uruguai", "Paraguai", "EUA", "Canadá", "México", "Alemanha",
+        "França", "Espanha", "Portugal", "Itália", "Inglaterra", "Holanda", "Japão", "China", "Coreia do Sul",
+        "Índia", "Austrália", "África do Sul", "Egito", "Nigéria", "Marrocos", "Rússia", "Ucrânia", "Suécia",
+        "Noruega", "Dinamarca", "Suíça", "Bélgica", "Áustria", "Polônia", "Nova Zelândia", "Islândia",
+        "Grécia", "Croácia", "Turquia", "Irlanda", "Finlândia", "Colômbia", "Peru", "Senegal"
+      ],
+      "Time / Seleção": [
+        "Brasil", "Argentina", "França", "Alemanha", "Espanha", "Portugal", "Itália", "Inglaterra",
+        "Holanda", "Bélgica", "Uruguai", "Croácia", "Japão", "México", "EUA", "Canadá", "Chile", "Colômbia",
+        "Peru", "Paraguai", "Flamengo", "Vasco", "Fluminense", "Botafogo", "Palmeiras", "Corinthians",
+        "São Paulo", "Santos", "Grêmio", "Internacional", "Barcelona", "Real Madrid", "Atlético Madrid",
+        "PSG", "Bayern", "Dortmund", "Juventus", "Milan", "Inter de Milão", "Napoli", "Chelsea", "Arsenal",
+        "Liverpool", "Manchester City", "Manchester United", "Tottenham", "Ajax", "Benfica", "Porto",
+        "Sporting", "Boca Juniors", "River Plate", "Cruzeiro", "Atlético Mineiro", "Bayer Leverkusen",
+        "Aston Villa", "Newcastle", "Lyon", "Marseille", "Fenerbahçe", "Galatasaray"
+      ],
+      "Jogador de Futebol": [
+        "Neymar", "Lionel Messi", "Cristiano Ronaldo", "Pelé", "Ronaldinho Gaúcho", "Ronaldo Fenômeno",
+        "Kaká", "Zidane", "Mbappé", "Haaland", "Vinícius Jr", "Rodrygo", "Casemiro", "Alisson", "Ederson",
+        "Modric", "Kroos", "Benzema", "Lewandowski", "Salah", "Mané", "De Bruyne", "Bernardo Silva",
+        "Bruno Fernandes", "Rashford", "Sancho", "Bellingham", "Pedri", "Gavi", "Ansu Fati", "Suárez",
+        "Cavani", "Di María", "Dybala", "Lautaro", "Romário", "Bebeto", "Rivaldo", "Cafu", "Roberto Carlos",
+        "Daniel Alves", "Marcelo", "Thiago Silva", "Marquinhos", "David Luiz", "Fred", "Hulk", "Gabriel Jesus",
+        "Richarlison", "Antony", "Buffon", "Neuer", "Courtois", "Ter Stegen", "Oblak", "Piqué", "Ramos",
+        "Van Dijk", "Chiellini", "Bonucci", "Zico", "Maradona", "Cruyff", "Iniesta", "Xavi", "Gullit",
+        "Van Basten", "Maldini", "Garrincha", "Socrates", "Romelu Lukaku", "Phil Foden", "Saka"
+      ],
+      "Filme": [
+        "Vingadores", "Titanic", "Avatar", "Homem-Aranha", "Batman", "Superman", "Coringa", "Harry Potter",
+        "Senhor dos Anéis", "Star Wars", "Jurassic Park", "Transformers", "Matrix", "Frozen", "Rei Leão",
+        "Toy Story", "Shrek", "Moana", "Aladdin", "Mulan", "De Volta Para o Futuro", "O Poderoso Chefão",
+        "Interestelar", "Clube da Luta", "Pulp Fiction", "Forrest Gump", "O Exterminador do Futuro",
+        "A Origem", "Gladiador", "O Iluminado", "Pantera Negra", "Mulher Maravilha", "Velozes e Furiosos",
+        "Piratas do Caribe", "Procurando Nemo", "Divertida Mente", "Zootopia"
+      ],
+      "Naruto": [
+        "Naruto", "Sasuke", "Sakura", "Kakashi", "Hinata", "Itachi", "Gaara", "Rock Lee", "Neji", "Tenten", 
+        "Jiraiya", "Tsunade", "Orochimaru", "Minato", "Kushina", "Shikamaru", "Ino", "Choji", "Kiba", "Akamaru", 
+        "Madara", "Obito", "Pain", "Konan", "Deidara", "Sasori", "Hidan", "Kakuzu", "Kisame", "Zabuza", "Haku", 
+        "Boruto", "Sarada", "Mitsuki", "Kawaki", "Hokage", "Anbu", "Ninja", "Sensei", "Time 7", "Vila da Folha", 
+        "Vila da Areia", "Vila da Névoa", "Vila da Pedra", "Vila da Nuvem", "Academia Ninja", "Exame Chunin", 
+        "Missão Rank S", "Guerra Ninja", "Clã Uchiha", "Clã Hyuga", "Clã Uzumaki", "Sharingan", "Mangekyou", 
+        "Byakugan", "Rinnegan", "Chakra", "Genjutsu", "Taijutsu", "Ninjutsu", "Rasengan", "Chidori", "Amaterasu", 
+        "Susanoo", "Kage Bunshin", "Katon", "Suiton", "Doton", "Raiton", "Fuuton", "Kunai", "Shuriken", 
+        "Pergaminho", "Bandana", "Máscara Anbu", "Espada", "Explosivo", "Marionete", "Veneno", "Selo", "Bijuu", 
+        "Kurama", "Shukaku", "Jinchuuriki", "Sábio", "Modo Sábio", "Modo Kurama", "Teletransporte", "Invocação"
+      ]
     };
 
     const generateRoomCode = () => Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -86,21 +306,9 @@
     const { useState, useEffect, useRef } = React;
 
     // ==========================================================
-    // 3. APLICATIVO PRINCIPAL (APP)
+    // 3. COMPONENTE PRINCIPAL (APP)
     // ==========================================================
     function App() {
-      if (!isConfigValid) {
-        return (
-          <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center text-white font-sans">
-            <i className="ph-fill ph-warning-circle text-6xl text-amber-500 mb-4 animate-bounce"></i>
-            <h1 className="text-3xl font-black mb-3">Banco de Dados Ausente</h1>
-            <p className="text-slate-400 max-w-lg mb-6">
-              Para jogar offline no seu computador conectando seus amigos via internet, é necessário inserir as chaves de um projeto do Firebase no código-fonte deste HTML.
-            </p>
-          </div>
-        );
-      }
-
       const [user, setUser] = useState(null);
       const [loadingAuth, setLoadingAuth] = useState(true);
       const [playerName, setPlayerName] = useState('');
@@ -111,44 +319,46 @@
 
       useEffect(() => {
         const initAuth = async () => {
-          try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await auth.signInWithCustomToken(__initial_auth_token);
-            } else {
-              await auth.signInAnonymously();
-            }
-          } catch (err) {
-            setErrorMsg("Erro ao conectar aos servidores.");
+          try { await auth.signInAnonymously(); } 
+          catch (err) { 
+              console.error(err);
+              setErrorMsg("Erro ao conectar no banco de dados. Verifique a Autenticação Anônima no Firebase."); 
           }
         };
         initAuth();
-
-        const unsubscribe = auth.onAuthStateChanged((u) => {
-          setUser(u);
-          setLoadingAuth(false);
-        });
+        const unsubscribe = auth.onAuthStateChanged((u) => { setUser(u); setLoadingAuth(false); });
         return () => unsubscribe();
       }, []);
 
       useEffect(() => {
         if (!user || !currentRoomId) return;
-
         const roomRef = getRoomRef(currentRoomId);
         const unsubscribe = roomRef.onSnapshot((snapshot) => {
-          if (snapshot.exists) {
-            setRoom(snapshot.data());
-          } else {
-            setRoom(null);
-            setCurrentRoomId(null);
-            setErrorMsg("A sala foi fechada ou não existe.");
-          }
-        }, () => {
-          setErrorMsg("Conexão perdida com a sala.");
+          if (snapshot.exists) setRoom(snapshot.data());
+          else { setRoom(null); setCurrentRoomId(null); setErrorMsg("Sala fechada ou inexistente."); }
+        }, (error) => {
+            console.error(error);
+            setErrorMsg("Erro de permissão no Firebase. Verifique as regras do Firestore.");
         });
-
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
+      const handleNextPhaseFromDiscussion = async (currentRoom, state) => {
+          const roomRef = getRoomRef(currentRoom.id);
+          if (state.currentRound < state.totalRounds) {
+              await roomRef.update({
+                  status: 'hinting',
+                  'gameState.currentRound': state.currentRound + 1,
+                  'gameState.currentTurnIndex': 0,
+                  'gameState.hints': {}, 
+                  'gameState.turnDeadline': Date.now() + (currentRoom.settings.hintTime * 1000)
+              });
+          } else {
+              await roomRef.update({ status: 'voting' });
+          }
+      };
+
+      // RELÓGIO MESTRE E BOTS
       useEffect(() => {
         if (!user || !room || room.hostId !== user.uid) return;
 
@@ -157,39 +367,97 @@
           const state = room.gameState;
 
           if (room.status === 'hinting' && state?.turnDeadline) {
-            if (now >= state.turnDeadline) {
-              await advanceTurn(room, state);
+            const currentUid = state.turnOrder[state.currentTurnIndex];
+            const isBot = room.players[currentUid]?.isBot;
+            
+            if (isBot && !state.hints[currentUid]) {
+                const turnDuration = room.settings.hintTime * 1000;
+                if ((state.turnDeadline - now) < (turnDuration - 3000)) {
+                    const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem"];
+                    const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
+                    const roomRef = getRoomRef(room.id);
+                    const doc = await roomRef.get();
+                    const d = doc.data();
+                    if (!d.gameState.hints[currentUid]) {
+                        const newHints = { ...d.gameState.hints, [currentUid]: botHint };
+                        const updatedAllHints = { ...d.gameState.allHints };
+                        updatedAllHints[currentUid] = [...(updatedAllHints[currentUid] || []), botHint];
+                        await roomRef.update({ 'gameState.hints': newHints, 'gameState.allHints': updatedAllHints });
+                        await advanceTurn(d, { ...d.gameState, hints: newHints, allHints: updatedAllHints });
+                    }
+                }
+            } else if (now >= state.turnDeadline && !isBot) {
+                await advanceTurn(room, state);
             }
-          } else if (room.status === 'discussing' && state?.phaseDeadline) {
+          } 
+          else if (room.status === 'discussing' && state?.phaseDeadline) {
             if (now >= state.phaseDeadline) {
-              const roomRef = getRoomRef(room.id);
-              await roomRef.update({ status: 'voting' });
+                await handleNextPhaseFromDiscussion(room, state);
             }
+            const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
+            bots.forEach(botUid => {
+                if (Math.random() < 0.05) { 
+                    const round = state.currentRound;
+                    const targets = Object.keys(room.players).filter(id => id !== botUid && state.hints[id]);
+                    if(targets.length === 0) return;
+                    const target = targets[Math.floor(Math.random() * targets.length)];
+                    const roomRef = getRoomRef(room.id);
+                    roomRef.get().then(doc => {
+                        const d = doc.data();
+                        const currentEval = d.gameState.evaluations || {};
+                        if (!currentEval[round]) currentEval[round] = {};
+                        if (!currentEval[round][target]) currentEval[round][target] = {};
+                        if (!currentEval[round][target][botUid]) {
+                            currentEval[round][target][botUid] = Math.random() > 0.3 ? 1 : -1;
+                            roomRef.update({ 'gameState.evaluations': currentEval });
+                        }
+                    });
+                }
+            });
+          } 
+          else if (room.status === 'voting') {
+             const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
+             bots.forEach(botUid => {
+                 if (!state.votes[botUid] && Math.random() < 0.2) { 
+                     const roomRef = getRoomRef(room.id);
+                     roomRef.get().then(doc => {
+                         const d = doc.data();
+                         if (!d.gameState.votes[botUid]) {
+                             const targets = Object.keys(d.players).filter(id => id !== botUid);
+                             const target = targets[Math.floor(Math.random() * targets.length)];
+                             const newVotes = { ...d.gameState.votes, [botUid]: target };
+                             roomRef.update({ 'gameState.votes': newVotes }).then(() => {
+                                 if (Object.keys(newVotes).length === Object.keys(d.players).length) {
+                                     roomRef.update({ status: 'finished' });
+                                 }
+                             });
+                         }
+                     });
+                 }
+             });
           }
         }, 1000);
-
         return () => clearInterval(interval);
       }, [room, user]);
 
       const handleCreateRoom = async () => {
         if (!playerName.trim()) return setErrorMsg("Digite seu nome primeiro!");
-        
         const newRoomId = generateRoomCode();
         const roomRef = getRoomRef(newRoomId);
-        
         const initialData = {
           id: newRoomId, hostId: user.uid, status: 'lobby',
-          settings: { category: Object.keys(DICTIONARY)[0], hintTime: 15, discussTime: 180 },
+          settings: { categoryPreset: 'Animais', hintTime: 15, discussTime: 120, impostorsCount: 1, roundsCount: 1 },
           players: { [user.uid]: { name: playerName, isHost: true } },
+          usedWords: [], 
           gameState: null
         };
-
         try {
           await roomRef.set(initialData);
           setCurrentRoomId(newRoomId);
           setErrorMsg('');
-        } catch (err) {
-          setErrorMsg("Erro ao criar sala.");
+        } catch (err) { 
+            console.error(err);
+            setErrorMsg("Erro ao criar sala. Verifique as regras do Firestore."); 
         }
       };
 
@@ -197,26 +465,19 @@
         e.preventDefault();
         if (!playerName.trim()) return setErrorMsg("Digite seu nome primeiro!");
         if (!roomCodeInput.trim()) return setErrorMsg("Digite o código da sala!");
-        
         const code = roomCodeInput.trim().toUpperCase();
         const roomRef = getRoomRef(code);
-        
         try {
           const docSnap = await roomRef.get();
           if (!docSnap.exists) return setErrorMsg("Sala não encontrada.");
-          
           const roomData = docSnap.data();
-          if (roomData.status !== 'lobby') return setErrorMsg("O jogo já começou nesta sala.");
-
+          if (roomData.status !== 'lobby') return setErrorMsg("O jogo já começou.");
           const updatedPlayers = { ...roomData.players };
           updatedPlayers[user.uid] = { name: playerName, isHost: false };
-          
           await roomRef.update({ players: updatedPlayers });
           setCurrentRoomId(code);
           setErrorMsg('');
-        } catch (err) {
-          setErrorMsg("Erro ao entrar na sala.");
-        }
+        } catch (err) { setErrorMsg("Erro ao entrar. Verifique permissões."); }
       };
 
       const leaveRoom = async () => {
@@ -224,7 +485,6 @@
           const roomRef = getRoomRef(room.id);
           const updatedPlayers = { ...room.players };
           delete updatedPlayers[user.uid];
-          
           if (Object.keys(updatedPlayers).length === 0) {
             await roomRef.delete();
           } else {
@@ -240,26 +500,64 @@
         setRoom(null);
       };
 
+      const handleAddBot = async () => {
+         const botNames = ["Jogador 2", "Visitante", "Convidado", "Misterioso", "Sombra"];
+         const randomName = botNames[Math.floor(Math.random() * botNames.length)] + ' ' + Math.floor(Math.random()*100);
+         const botUid = 'bot_' + Date.now() + Math.floor(Math.random()*1000);
+         const roomRef = getRoomRef(room.id);
+         await roomRef.update({ [`players.${botUid}`]: { name: randomName, isBot: true, isHost: false } });
+      };
+
+      const handleRemoveBot = async (botUid) => {
+         const roomRef = getRoomRef(room.id);
+         const updatedPlayers = { ...room.players };
+         delete updatedPlayers[botUid];
+         await roomRef.update({ players: updatedPlayers });
+      };
+
+      const [isStartingGame, setIsStartingGame] = useState(false);
+
       const startGame = async () => {
         const playerIds = Object.keys(room.players);
-        if (playerIds.length < 3) return setErrorMsg("Mínimo de 3 jogadores para iniciar.");
+        if (playerIds.length < 3) return setErrorMsg("Mínimo de 3 jogadores na sala.");
 
-        const category = room.settings.category;
-        const words = DICTIONARY[category];
-        const secretWord = words[Math.floor(Math.random() * words.length)];
+        setIsStartingGame(true);
+
+        const requestedImpostors = room.settings.impostorsCount || 1;
+        const maxImpostors = Math.max(1, Math.floor(playerIds.length / 2)); 
+        const actualImpostorsCount = Math.min(requestedImpostors, maxImpostors);
+
+        let category = room.settings.categoryPreset || 'Animais';
+
+        const currentUsedWords = room.usedWords || [];
+        const wordsDict = FALLBACK_DICTIONARY[category] || FALLBACK_DICTIONARY["Animais"];
         
-        const impostorId = playerIds[Math.floor(Math.random() * playerIds.length)];
+        let availableWords = wordsDict.filter(w => !currentUsedWords.includes(w));
+        
+        if (availableWords.length === 0) {
+            availableWords = wordsDict;
+        }
+
+        const secretWord = availableWords[Math.floor(Math.random() * availableWords.length)];
+        const nextUsedWords = [...currentUsedWords, secretWord]; 
+        
+        const shuffled = [...playerIds].sort(() => Math.random() - 0.5);
+        const impostorIds = shuffled.slice(0, actualImpostorsCount);
         const turnOrder = [...playerIds].sort(() => Math.random() - 0.5);
 
         const roomRef = getRoomRef(room.id);
         await roomRef.update({
           status: 'hinting',
+          usedWords: nextUsedWords,
           gameState: {
-            word: secretWord, impostorId: impostorId, turnOrder: turnOrder,
+            word: secretWord, impostorIds: impostorIds, turnOrder: turnOrder,
+            currentRound: 1, totalRounds: room.settings.roundsCount || 1,
             currentTurnIndex: 0, turnDeadline: Date.now() + (room.settings.hintTime * 1000),
-            hints: {}, votes: {}
+            hints: {}, allHints: {}, evaluations: {}, votes: {}
           }
         });
+        
+        setIsStartingGame(false);
         setErrorMsg('');
       };
 
@@ -284,19 +582,35 @@
       const submitHint = async (hint) => {
         if (!hint.trim()) return;
         const roomRef = getRoomRef(room.id);
-        const updatedHints = { ...room.gameState.hints, [user.uid]: hint };
         
-        await roomRef.update({ 'gameState.hints': updatedHints });
-        const state = { ...room.gameState, hints: updatedHints };
+        const updatedHints = { ...room.gameState.hints, [user.uid]: hint };
+        const updatedAllHints = { ...room.gameState.allHints };
+        updatedAllHints[user.uid] = [...(updatedAllHints[user.uid] || []), hint];
+
+        await roomRef.update({ 'gameState.hints': updatedHints, 'gameState.allHints': updatedAllHints });
+        const state = { ...room.gameState, hints: updatedHints, allHints: updatedAllHints };
         await advanceTurn(room, state);
       };
+
+      const handleEvaluation = async (targetUid, value) => {
+        const currentEval = room.gameState.evaluations || {};
+        const round = room.gameState.currentRound;
+        if (!currentEval[round]) currentEval[round] = {};
+        if (!currentEval[round][targetUid]) currentEval[round][targetUid] = {};
+
+        if (currentEval[round][targetUid][user.uid] === value) delete currentEval[round][targetUid][user.uid]; 
+        else currentEval[round][targetUid][user.uid] = value;
+
+        const roomRef = getRoomRef(room.id);
+        await roomRef.update({ 'gameState.evaluations': currentEval });
+      };
+
+      const skipDiscussion = async () => await handleNextPhaseFromDiscussion(room, room.gameState);
 
       const submitVote = async (targetUid) => {
         const roomRef = getRoomRef(room.id);
         const updatedVotes = { ...room.gameState.votes, [user.uid]: targetUid };
-        
         await roomRef.update({ 'gameState.votes': updatedVotes });
-
         if (Object.keys(updatedVotes).length === Object.keys(room.players).length) {
           await roomRef.update({ status: 'finished' });
         }
@@ -312,125 +626,72 @@
         await roomRef.update({ [`settings.${key}`]: value });
       };
 
+      const getThemeClass = (category) => {
+          switch(category) {
+              case 'Naruto': return 'theme-naruto';
+              case 'Time / Seleção':
+              case 'Jogador de Futebol': return 'theme-futebol';
+              case 'Comida': return 'theme-comida';
+              case 'Cidade':
+              case 'País': return 'theme-lugares';
+              case 'Profissões': return 'theme-profissoes';
+              case 'Filme': return 'theme-filmes';
+              default: return ''; 
+          }
+      };
+
       if (loadingAuth) {
-        return <div className="min-h-screen flex items-center justify-center text-fuchsia-500"><i className="ph ph-spinner-gap text-5xl animate-spin"></i></div>;
+        return <div className="min-h-screen flex items-center justify-center"><i className="ph ph-spinner-gap text-5xl animate-spin text-white"></i></div>;
       }
 
-      // BACKGROUND DINÂMICO BASEADO NO STATUS DO JOGO
-      let bgGradient = "from-violet-500 to-fuchsia-500";
-      if (room?.status === 'discussing') bgGradient = "from-orange-500 to-rose-500";
-      if (room?.status === 'voting') bgGradient = "from-indigo-600 to-blue-500";
-      if (room?.status === 'finished') bgGradient = "from-emerald-400 to-teal-600";
-      if (room?.status === 'hinting') {
-          bgGradient = room.gameState.impostorId === user?.uid 
-            ? "from-red-500 to-orange-500" 
-            : "from-emerald-400 to-cyan-500";
-      }
+      const categoryTheme = room?.settings?.categoryPreset || 'Animais';
+      const themeClass = getThemeClass(categoryTheme);
 
       return (
-        <div className={`max-w-[480px] mx-auto min-h-screen sm:min-h-[90vh] sm:my-8 sm:rounded-[3rem] bg-gradient-to-br ${bgGradient} shadow-2xl relative flex flex-col overflow-hidden transition-colors duration-700`}>
-          
-          {/* Header Superior - Sempre vísivel com fundo transparente */}
-          <header className="px-6 py-5 flex justify-between items-center relative z-20 text-white">
-            <div className="flex items-center gap-2 font-black text-xl tracking-tight">
-              <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
-                <i className="ph-bold ph-ghost text-white text-2xl"></i>
-              </div>
-              <span>INFILTRADO</span>
-            </div>
-            {room && (
-              <button onClick={leaveRoom} className="flex items-center gap-2 text-sm text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full backdrop-blur-md transition-all">
-                <i className="ph-bold ph-sign-out"></i> Sair
-              </button>
-            )}
-          </header>
-
-          {/* Toast de Erro Flutuante */}
-          {errorMsg && (
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[90%] bg-red-500 text-white px-6 py-4 rounded-2xl flex items-center gap-3 shadow-xl z-50 animate-in slide-in-from-top-4">
-              <i className="ph-fill ph-warning-circle text-2xl"></i>
-              <p className="font-medium text-sm">{errorMsg}</p>
-              <button onClick={() => setErrorMsg('')} className="ml-auto"><i className="ph-bold ph-x"></i></button>
-            </div>
-          )}
-
-          {/* Área Principal - Onde as telas são renderizadas */}
-          {!currentRoomId || !room ? (
-            <HomeScreen playerName={playerName} setPlayerName={setPlayerName} roomCodeInput={roomCodeInput} setRoomCodeInput={setRoomCodeInput} handleCreateRoom={handleCreateRoom} handleJoinRoom={handleJoinRoom} />
-          ) : (
-            <GameContainer room={room} user={user} startGame={startGame} submitHint={submitHint} submitVote={submitVote} restartGame={restartGame} updateSetting={updateSetting} />
-          )}
-
-        </div>
-      );
-    }
-
-    // ==========================================================
-    // TELAS DO JOGO COM O NOVO DESIGN SYSTEM
-    // ==========================================================
-
-    function HomeScreen({ playerName, setPlayerName, roomCodeInput, setRoomCodeInput, handleCreateRoom, handleJoinRoom }) {
-      return (
-        <div className="flex-1 flex flex-col relative animate-in fade-in duration-500">
-          
-          {/* Área Superior com Ícone Grande */}
-          <div className="h-48 flex items-center justify-center relative z-0">
-            <div className="relative">
-              <div className="absolute inset-0 bg-white/20 blur-2xl rounded-full scale-150"></div>
-              <i className="ph-fill ph-detective text-[120px] text-white drop-shadow-2xl animate-bounce relative z-10"></i>
-            </div>
+        <div className={`w-full min-h-screen ${themeClass} flex flex-col relative transition-colors duration-1000`}>
+          <div className="bg-orbs">
+            <div className="orb-1"></div>
+            <div className="orb-2"></div>
+            <div className="pattern-overlay"></div>
           </div>
 
-          {/* Container Branco Arredondado - Estilo Card Premium */}
-          <div className="bg-slate-50 rounded-t-[2.5rem] flex-1 w-full p-8 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative z-10 flex flex-col gap-6 -mt-6">
-            <div className="text-center mb-2">
-              <h1 className="text-3xl font-black text-slate-800 tracking-tight">Crie sua Sala</h1>
-              <p className="text-slate-500 mt-2 text-sm leading-relaxed">Prepare-se para enganar seus amigos ou bancar o detetive.</p>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider ml-2">Seu Apelido</label>
-                <input 
-                  type="text" 
-                  value={playerName} 
-                  onChange={e => setPlayerName(e.target.value)} 
-                  placeholder="Ex: Joãozinho" 
-                  className="w-full bg-white border-2 border-slate-100 rounded-full px-6 py-4 text-slate-800 font-bold shadow-sm focus:outline-none focus:border-fuchsia-300 focus:ring-4 focus:ring-fuchsia-100 transition-all placeholder-slate-300" 
-                  maxLength={15} 
-                />
+          <div className="max-w-[480px] w-full mx-auto flex-1 flex flex-col relative z-10 px-4 py-6">
+            <header className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
+                {categoryTheme === 'Naruto' && room?.status !== 'finished' ? (
+                   <i className="ph-fill ph-star text-2xl animate-spin-slow" style={{animationDuration: '10s'}}></i>
+                ) : (
+                   <i className="ph-fill ph-ghost text-2xl"></i>
+                )}
+                <span>Infiltrado</span>
               </div>
-
-              <button 
-                onClick={handleCreateRoom} 
-                className="w-full bg-gradient-to-r from-fuchsia-500 to-orange-400 text-white font-black py-4 px-6 rounded-full shadow-[0_10px_25px_rgba(217,70,239,0.3)] transform hover:-translate-y-1 transition-all flex justify-center items-center gap-2 text-lg"
-              >
-                <i className="ph-bold ph-plus-circle text-xl"></i> Criar Nova Sala
-              </button>
-
-              <div className="relative flex items-center py-2">
-                <div className="flex-grow border-t border-slate-200"></div>
-                <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-bold uppercase tracking-widest">Ou entre em uma</span>
-                <div className="flex-grow border-t border-slate-200"></div>
-              </div>
-
-              <form onSubmit={handleJoinRoom} className="space-y-4">
-                <input 
-                  type="text" 
-                  value={roomCodeInput} 
-                  onChange={e => setRoomCodeInput(e.target.value.toUpperCase())} 
-                  placeholder="CÓDIGO DA SALA" 
-                  className="w-full bg-white border-2 border-slate-100 rounded-full px-6 py-4 text-slate-800 text-center font-mono font-black text-xl tracking-widest shadow-sm focus:outline-none focus:border-violet-300 focus:ring-4 focus:ring-violet-100 transition-all placeholder-slate-300 uppercase" 
-                  maxLength={4} 
-                />
-                <button 
-                  type="submit" 
-                  className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 px-6 rounded-full shadow-[0_10px_25px_rgba(30,41,59,0.2)] transition-all transform hover:-translate-y-1"
-                >
-                  Entrar na Sala
+              {room && (
+                <button onClick={leaveRoom} className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded-full glass-card hover:bg-white/10 transition-colors">
+                  <i className="ph-bold ph-sign-out"></i> Sair
                 </button>
-              </form>
+              )}
+            </header>
+
+            {errorMsg && (
+              <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[90%] bg-red-500/90 backdrop-blur-md text-white px-6 py-4 rounded-2xl flex items-center gap-3 z-50 animate-in slide-in-from-top-4 shadow-2xl border border-red-400/50">
+                <i className="ph-fill ph-warning-circle text-2xl"></i>
+                <p className="font-medium text-sm">{errorMsg}</p>
+                <button onClick={() => setErrorMsg('')} className="ml-auto"><i className="ph-bold ph-x"></i></button>
+              </div>
+            )}
+
+            <div className="flex-1 flex flex-col w-full h-full">
+              {!currentRoomId || !room ? (
+                <HomeScreen playerName={playerName} setPlayerName={setPlayerName} roomCodeInput={roomCodeInput} setRoomCodeInput={setRoomCodeInput} handleCreateRoom={handleCreateRoom} handleJoinRoom={handleJoinRoom} />
+              ) : (
+                <GameContainer 
+                    room={room} user={user} startGame={startGame} submitHint={submitHint} submitVote={submitVote} 
+                    restartGame={restartGame} updateSetting={updateSetting} handleAddBot={handleAddBot} handleRemoveBot={handleRemoveBot}
+                    skipDiscussion={skipDiscussion} handleEvaluation={handleEvaluation} isStartingGame={isStartingGame} categoryTheme={categoryTheme}
+                />
+              )}
             </div>
+
           </div>
         </div>
       );
@@ -440,103 +701,176 @@
       switch (props.room.status) {
         case 'lobby': return <LobbyScreen {...props} isHost={props.room.hostId === props.user.uid} />;
         case 'hinting': return <HintingScreen {...props} />;
-        case 'discussing': return <DiscussingScreen {...props} />;
+        case 'discussing': return <DiscussingScreen {...props} isHost={props.room.hostId === props.user.uid} />;
         case 'voting': return <VotingScreen {...props} />;
         case 'finished': return <ResultScreen {...props} isHost={props.room.hostId === props.user.uid} />;
-        default: return <div>Estado desconhecido.</div>;
+        default: return <div>Erro de estado.</div>;
       }
     }
 
-    function LobbyScreen({ room, isHost, startGame, updateSetting, user }) {
-      const players = Object.entries(room.players);
+    function HomeScreen({ playerName, setPlayerName, roomCodeInput, setRoomCodeInput, handleCreateRoom, handleJoinRoom }) {
       return (
-        <div className="flex-1 flex flex-col relative animate-in slide-in-from-right duration-300">
-          
-          {/* Código da Sala em Destaque */}
-          <div className="pt-2 pb-10 px-8 text-center text-white relative z-0">
-            <p className="text-white/70 text-sm uppercase tracking-widest font-bold mb-1">Código da Sala</p>
-            <div className="text-6xl font-black font-mono tracking-widest drop-shadow-xl select-all cursor-pointer">
-              {room.id}
+        <div className="flex-1 flex flex-col justify-center gap-8 animate-in fade-in duration-500">
+          <div className="flex justify-center items-center flex-col gap-4">
+            <div className="w-32 h-32 rounded-[2rem] glass-card flex items-center justify-center shadow-2xl relative overflow-hidden">
+               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+               <i className="ph-fill ph-detective text-white text-[70px] drop-shadow-lg relative z-10"></i>
+            </div>
+            <div className="text-center">
+              <h1 className="text-4xl font-bold tracking-tight">O Infiltrado</h1>
+              <p className="text-white/60 text-sm mt-1 font-medium">Descubra quem não sabe a palavra.</p>
             </div>
           </div>
 
-          {/* Container Branco Principal */}
-          <div className="bg-slate-50 rounded-t-[2.5rem] flex-1 w-full p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative z-10 flex flex-col pb-8">
-            
-            {/* Botão Flutuante Iniciar Jogo (Se for Host) */}
-            {isHost ? (
-               <button 
-                onClick={startGame} 
-                className="absolute -top-8 right-8 bg-gradient-to-r from-orange-400 to-rose-400 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-[0_10px_25px_rgba(2fb,113,133,0.5)] transform hover:scale-110 transition-all z-20"
-                title="Iniciar Jogo"
-              >
-                <i className="ph-fill ph-play text-3xl ml-1"></i>
-              </button>
-            ) : (
-              <div className="absolute -top-6 right-8 bg-slate-800 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg animate-pulse z-20">
-                Aguardando host...
+          <div className="glass-card p-6 flex flex-col gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-white/60 mb-2 uppercase tracking-wider ml-1">Como te chamam?</label>
+                <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value)} placeholder="Seu apelido..." className="w-full glass-input rounded-2xl px-5 py-4 text-white font-medium transition-all" maxLength={15} />
               </div>
-            )}
+              <button onClick={handleCreateRoom} className="w-full btn-gradient rounded-full text-white font-bold py-4 text-lg flex justify-center items-center gap-2">
+                <i className="ph-bold ph-plus-circle text-xl"></i> Criar Nova Sala
+              </button>
+            </div>
 
-            <div className="flex items-center justify-between mb-6 mt-4">
-              <h3 className="font-black text-xl text-slate-800 flex items-center gap-2">
-                Jogadores <span className="bg-violet-100 text-violet-600 px-3 py-1 rounded-full text-sm">{players.length}</span>
+            <div className="flex items-center gap-4 py-2">
+              <div className="flex-1 border-t border-white/10"></div>
+              <span className="text-white/30 text-xs font-bold uppercase tracking-widest">OU</span>
+              <div className="flex-1 border-t border-white/10"></div>
+            </div>
+
+            <form onSubmit={handleJoinRoom} className="space-y-3">
+              <input type="text" value={roomCodeInput} onChange={e => setRoomCodeInput(e.target.value.toUpperCase())} placeholder="CÓDIGO DA SALA" className="w-full glass-input rounded-2xl px-5 py-4 text-center font-mono font-bold text-xl tracking-[0.3em] uppercase" maxLength={4} />
+              <button type="submit" className="w-full bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold py-4 rounded-full transition-all">
+                Entrar na Sala
+              </button>
+            </form>
+
+          </div>
+          
+          <a href="https://discord.gg/8aemaeSRnb" target="_blank" rel="noopener noreferrer" className="glass-card bg-[#5865F2]/10 hover:bg-[#5865F2]/20 border border-[#5865F2]/30 p-4 rounded-2xl flex items-center justify-center gap-3 transition-all group shadow-[0_0_15px_rgba(88,101,242,0.15)]">
+            <i className="ph-fill ph-discord-logo text-[#5865F2] text-3xl group-hover:scale-110 transition-transform duration-300"></i>
+            <div className="text-left flex flex-col">
+              <span className="text-white font-bold text-sm leading-tight">Entrar no Discord</span>
+              <span className="text-[#5865F2] text-[10px] uppercase tracking-widest font-semibold">Jogue em Call de Voz</span>
+            </div>
+          </a>
+        </div>
+      );
+    }
+
+    function LobbyScreen({ room, isHost, startGame, updateSetting, user, handleAddBot, handleRemoveBot, isStartingGame, categoryTheme }) {
+      const players = Object.entries(room.players);
+      return (
+        <div className="flex-1 flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="glass-card p-8 text-center mb-6 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-glow-1)]/10 to-transparent"></div>
+            <p className="text-white/60 text-xs uppercase tracking-widest font-semibold mb-2 relative z-10">Código da Missão</p>
+            <div className="text-6xl font-black font-mono tracking-widest text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] select-all cursor-pointer relative z-10">
+               {room.id}
+            </div>
+          </div>
+
+          <div className="flex-1 glass-card p-6 flex flex-col overflow-y-auto no-scrollbar pb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                Jogadores <span className="bg-white/20 text-white px-2.5 py-0.5 rounded-full text-xs">{players.length}</span>
               </h3>
+              {isHost && (
+                <button onClick={handleAddBot} className="text-xs font-semibold bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-1.5 rounded-full transition-colors flex items-center gap-1.5">
+                   <i className="ph-bold ph-robot"></i> Adicionar Bot
+                </button>
+              )}
             </div>
             
-            {/* Grid de Jogadores */}
             <div className="grid grid-cols-2 gap-3 mb-8">
               {players.map(([uid, p]) => (
-                <div key={uid} className={`bg-white p-3 rounded-2xl flex items-center gap-3 shadow-sm border ${uid === user.uid ? 'border-violet-200' : 'border-slate-100'}`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-white text-lg ${p.isHost ? 'bg-gradient-to-br from-amber-400 to-orange-500' : 'bg-gradient-to-br from-violet-400 to-fuchsia-500'}`}>
-                    {p.name.charAt(0).toUpperCase()}
+                <div key={uid} className={`bg-white/5 border border-white/10 p-2.5 rounded-[1.25rem] flex items-center gap-3 relative ${uid === user.uid ? 'ring-1 ring-[var(--color-accent)] bg-white/10' : ''}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-lg shadow-inner ${p.isHost ? 'bg-gradient-to-br from-[var(--color-glow-1)] to-[var(--color-glow-2)]' : 'bg-black/40'}`}>
+                    {p.isBot ? <i className="ph-fill ph-robot"></i> : p.name.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-slate-700 text-sm truncate">{p.name}</div>
-                    {p.isHost && <div className="text-[10px] text-amber-500 font-bold uppercase tracking-wider">Host</div>}
+                  <div className="flex-1 min-w-0 pr-2">
+                    <div className="font-medium text-sm truncate">{p.name}</div>
+                    {p.isHost && <div className="text-[9px] text-[var(--color-accent)] font-bold uppercase tracking-wider">Líder</div>}
                   </div>
+                  {p.isBot && isHost && (
+                     <button onClick={() => handleRemoveBot(uid)} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-red-400 transition-colors p-1">
+                        <i className="ph-bold ph-x text-lg"></i>
+                     </button>
+                  )}
                 </div>
               ))}
             </div>
 
-            {/* Configurações (Apenas visualização elegante para quem não é host) */}
-            <div className="mt-auto bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
-              <h3 className="font-bold text-sm text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <i className="ph-fill ph-sliders"></i> Regras da Partida
-              </h3>
+            <div className="mt-auto pt-6 border-t border-white/10">
+              <h3 className="font-bold text-xs text-white/50 uppercase tracking-widest mb-4 ml-1">Configurações</h3>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Tema</label>
-                  <select disabled={!isHost} value={room.settings.category} onChange={e => updateSetting('category', e.target.value)} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-800 font-bold focus:ring-2 focus:ring-violet-200 disabled:opacity-80 appearance-none">
-                    {Object.keys(DICTIONARY).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Tema (Palavras)</label>
+                  <select 
+                    disabled={!isHost} 
+                    value={room.settings.categoryPreset || 'Animais'} 
+                    onChange={e => updateSetting('categoryPreset', e.target.value)} 
+                    className="w-full glass-input rounded-xl px-4 py-3.5 text-sm font-medium disabled:opacity-50"
+                  >
+                    <option value="Animais">🐾 Animais</option>
+                    <option value="Comida">🍕 Comida</option>
+                    <option value="Profissões">👨‍⚕️ Profissões</option>
+                    <option value="Cidade">🏙️ Cidades</option>
+                    <option value="País">🌎 Países</option>
+                    <option value="Time / Seleção">⚽ Times e Seleções</option>
+                    <option value="Jogador de Futebol">🏃 Jogadores de Futebol</option>
+                    <option value="Filme">🎬 Filmes</option>
+                    <option value="Naruto">🍥 Naruto (Anime)</option>
                   </select>
                 </div>
-                
+
                 <div className="flex gap-4">
                   <div className="flex-1">
-                    <label className="block text-xs font-bold text-slate-700 mb-1"><i className="ph-fill ph-timer"></i> Dica (seg)</label>
-                    <input type="number" disabled={!isHost} value={room.settings.hintTime} onChange={e => updateSetting('hintTime', parseInt(e.target.value))} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-800 font-bold focus:ring-2 focus:ring-violet-200 disabled:opacity-80" />
+                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Rodadas</label>
+                    <select disabled={!isHost} value={room.settings.roundsCount || 1} onChange={e => updateSetting('roundsCount', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
+                      <option value={1}>1x</option>
+                      <option value={2}>2x</option>
+                      <option value={3}>3x</option>
+                    </select>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-xs font-bold text-slate-700 mb-1"><i className="ph-fill ph-chats"></i> Debate (seg)</label>
-                    <input type="number" disabled={!isHost} value={room.settings.discussTime} onChange={e => updateSetting('discussTime', parseInt(e.target.value))} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-800 font-bold focus:ring-2 focus:ring-violet-200 disabled:opacity-80" />
+                    <label className="block text-[10px] font-semibold text-white/60 mb-1.5 uppercase tracking-wider ml-1">Impostores</label>
+                    <select disabled={!isHost} value={room.settings.impostorsCount || 1} onChange={e => updateSetting('impostorsCount', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                    </select>
                   </div>
                 </div>
               </div>
+
+              <div className="mt-8">
+                {isHost ? (
+                  <button onClick={startGame} disabled={isStartingGame} className={`w-full btn-gradient py-4 rounded-full font-bold text-lg flex justify-center items-center gap-2 disabled:opacity-70`}>
+                    {isStartingGame ? <><i className="ph-bold ph-spinner animate-spin"></i> Preparando...</> : <><i className="ph-bold ph-play"></i> Iniciar Jogo</>}
+                  </button>
+                ) : (
+                  <div className="w-full bg-white/5 border border-white/10 text-white/50 font-medium py-4 rounded-full text-center text-sm flex items-center justify-center gap-2">
+                    <i className="ph-bold ph-hourglass-medium"></i> Aguardando o líder
+                  </div>
+                )}
+              </div>
             </div>
-            
           </div>
         </div>
       );
     }
 
-    function HintingScreen({ room, user, submitHint }) {
+    function HintingScreen({ room, user, submitHint, categoryTheme }) {
       const state = room.gameState;
-      const isImpostor = state.impostorId === user.uid;
+      const isImpostor = state.impostorIds.includes(user.uid);
       const isMyTurn = state.turnOrder[state.currentTurnIndex] === user.uid;
       const [hintInput, setHintInput] = useState('');
       const [timeLeft, setTimeLeft] = useState(room.settings.hintTime);
+
+      const themeName = room.settings.categoryPreset;
 
       useEffect(() => {
         const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.turnDeadline - Date.now()) / 1000))), 500);
@@ -545,77 +879,83 @@
 
       return (
         <div className="flex-1 flex flex-col relative animate-in zoom-in-95 duration-500">
-          
-          {/* Header do Papel Secreto */}
-          <div className="pt-2 pb-10 px-8 text-center text-white relative z-0">
+          <div className="pt-2 pb-6 text-center relative z-10 flex flex-col items-center justify-center min-h-[180px]">
             {isImpostor ? (
-              <div className="animate-in slide-in-from-top-4">
-                <i className="ph-fill ph-mask-happy text-[80px] drop-shadow-xl mb-2"></i>
-                <div className="text-3xl font-black uppercase tracking-widest drop-shadow-md">Impostor!</div>
-                <p className="text-white/80 font-medium mt-1">Siga a onda, dê uma dica vaga.</p>
+              <div className="animate-in slide-in-from-top-4 flex flex-col items-center w-full">
+                <div className="w-20 h-20 rounded-3xl bg-black/40 border border-white/10 flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(var(--color-accent),0.3)]">
+                    <i className="ph-fill ph-mask-happy text-[var(--color-accent)] text-[40px]"></i>
+                </div>
+                <div className="text-3xl font-black uppercase tracking-widest text-white drop-shadow-md">IMPOSTOR!</div>
+                <div className="mt-3 bg-white/10 backdrop-blur-md px-6 py-2.5 rounded-full border border-white/10 flex items-center gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider opacity-60">Tema:</span>
+                  <span className="text-sm font-bold uppercase text-[var(--color-accent)]">{themeName}</span>
+                </div>
               </div>
             ) : (
-              <div className="animate-in slide-in-from-top-4">
-                <p className="text-white/70 font-bold uppercase tracking-widest mb-1 text-sm">A palavra é</p>
-                <div className="text-4xl sm:text-5xl font-black uppercase tracking-widest drop-shadow-xl bg-white/20 inline-block px-6 py-2 rounded-2xl backdrop-blur-sm border border-white/30">
+              <div className="animate-in slide-in-from-top-4 w-full flex flex-col items-center">
+                <div className="bg-white/10 backdrop-blur-sm border border-white/10 px-4 py-1.5 rounded-full mb-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest">TEMA: <span className="text-[var(--color-accent)]">{themeName}</span></p>
+                </div>
+                <p className="font-medium uppercase tracking-widest mb-1 text-xs text-white/60">A PALAVRA É</p>
+                <div className="text-4xl sm:text-5xl font-black uppercase tracking-tight text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.4)] text-center px-4">
                   {state.word}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Container Principal */}
-          <div className="bg-slate-50 rounded-t-[2.5rem] flex-1 w-full p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative z-10 flex flex-col">
+          <div className="glass-card flex-1 p-6 flex flex-col pb-8 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[var(--color-glow-1)] to-transparent opacity-50"></div>
             
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-black text-xl text-slate-800">Dicas da Rodada</h3>
-              <div className={`px-4 py-2 rounded-full font-black text-lg shadow-sm border ${timeLeft <= 5 ? 'bg-red-100 text-red-600 animate-pulse border-red-200' : 'bg-white text-slate-700 border-slate-100'}`}>
-                {timeLeft}s
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                Rodada <span className="text-[var(--color-accent)]">{state.currentRound}</span><span className="text-white/30 text-sm">/ {state.totalRounds}</span>
+              </h3>
+              <div className={`px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 5 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
+                 00:{timeLeft.toString().padStart(2, '0')}
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-24">
+            <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 pb-20 relative">
+               <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-white/5 rounded-full z-0"></div>
+
               {state.turnOrder.map((uid, idx) => {
                 const player = room.players[uid];
                 const isThisTurn = idx === state.currentTurnIndex;
                 const hasPlayed = idx < state.currentTurnIndex;
+                const pastHints = state.allHints?.[uid] || [];
                 
                 return (
-                  <div key={uid} className={`bg-white p-4 rounded-3xl flex items-center gap-4 transition-all border shadow-sm
-                    ${isThisTurn ? 'border-fuchsia-400 shadow-md transform scale-[1.02]' : hasPlayed ? 'border-slate-100' : 'border-transparent opacity-60 bg-slate-100/50'}
-                  `}>
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black text-white text-lg shrink-0 ${isThisTurn ? 'bg-gradient-to-br from-fuchsia-500 to-orange-400' : 'bg-slate-300'}`}>
-                      {player.name.charAt(0).toUpperCase()}
+                  <div key={uid} className={`relative p-4 rounded-2xl transition-all z-10 flex items-center gap-4 ${isThisTurn ? 'bg-white/10 border border-white/20 shadow-lg scale-[1.02]' : 'bg-transparent border border-transparent'}`}>
+                    
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-white text-xl shrink-0 transition-all ${isThisTurn ? 'bg-gradient-to-br from-[var(--color-glow-1)] to-[var(--color-glow-2)] shadow-lg' : hasPlayed ? 'bg-white/5 border border-white/10 text-white/50' : 'bg-black/20 border border-white/5 text-white/30'}`}>
+                      {player?.isBot ? <i className="ph-fill ph-robot"></i> : player?.name?.charAt(0).toUpperCase()}
                     </div>
+                    
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm text-slate-400">{player.name}</div>
+                      <div className="font-semibold text-xs text-white/60 flex items-center gap-2">
+                          {player?.name}
+                      </div>
+                      
                       {hasPlayed && state.hints[uid] ? (
-                        <div className="text-slate-800 font-bold text-lg leading-tight mt-1">"{state.hints[uid]}"</div>
+                        <div className="text-white font-medium text-lg leading-tight mt-0.5">"{state.hints[uid]}"</div>
                       ) : isThisTurn ? (
-                        <div className="text-fuchsia-500 font-bold text-sm mt-1 flex items-center gap-2">
-                           Escrevendo <i className="ph-bold ph-pencil-simple animate-pulse"></i>
-                        </div>
+                        <div className="text-[var(--color-accent)] font-semibold text-sm mt-0.5 flex items-center gap-2">Pensando <span className="flex gap-0.5"><span className="animate-bounce">.</span><span className="animate-bounce delay-100">.</span><span className="animate-bounce delay-200">.</span></span></div>
                       ) : (
-                        <div className="text-slate-300 font-medium text-sm mt-1">Aguardando...</div>
+                        <div className="text-white/30 font-medium text-sm mt-0.5">Aguardando</div>
                       )}
                     </div>
-                    {hasPlayed && <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0"><i className="ph-bold ph-check text-emerald-500"></i></div>}
+                    {hasPlayed && <div className="text-emerald-400 mr-2 bg-emerald-400/10 p-1.5 rounded-full"><i className="ph-bold ph-check"></i></div>}
                   </div>
                 );
               })}
             </div>
 
-            {/* Input Box Fixado na Base Se for Minha Vez */}
             {isMyTurn && (
               <div className="absolute bottom-6 left-6 right-6 animate-in slide-in-from-bottom-4">
-                <form onSubmit={e => { e.preventDefault(); submitHint(hintInput); setHintInput(''); }} className="bg-white p-2 rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.15)] border border-slate-100 flex gap-2">
-                  <input 
-                    type="text" autoFocus value={hintInput} onChange={e => setHintInput(e.target.value)} 
-                    placeholder="Sua dica rápida..." 
-                    className="flex-1 bg-transparent px-6 text-slate-800 font-bold focus:outline-none placeholder-slate-300" 
-                    maxLength={40} 
-                  />
-                  <button type="submit" disabled={!hintInput.trim()} className="bg-gradient-to-r from-fuchsia-500 to-orange-400 text-white font-black w-14 h-14 rounded-full flex items-center justify-center shrink-0 transform hover:scale-105 disabled:opacity-50">
+                <form onSubmit={e => { e.preventDefault(); submitHint(hintInput); setHintInput(''); }} className="bg-black/60 backdrop-blur-xl p-2 rounded-full border border-white/20 shadow-2xl flex gap-2">
+                  <input type="text" autoFocus value={hintInput} onChange={e => setHintInput(e.target.value)} placeholder="Escreva sua dica..." className="flex-1 bg-transparent px-5 text-white font-medium focus:outline-none placeholder-white/30" maxLength={40} />
+                  <button type="submit" disabled={!hintInput.trim()} className="btn-gradient text-white font-bold w-12 h-12 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50">
                     <i className="ph-bold ph-paper-plane-right text-xl"></i>
                   </button>
                 </form>
@@ -626,39 +966,89 @@
       );
     }
 
-    function DiscussingScreen({ room }) {
+    function DiscussingScreen({ room, user, isHost, skipDiscussion, handleEvaluation }) {
+      const state = room.gameState;
       const [timeLeft, setTimeLeft] = useState(room.settings.discussTime);
+      const themeName = room.settings.categoryPreset;
+      
       useEffect(() => {
-        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((room.gameState.phaseDeadline - Date.now()) / 1000))), 1000);
+        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.phaseDeadline - Date.now()) / 1000))), 1000);
         return () => clearInterval(int);
-      }, [room.gameState.phaseDeadline]);
+      }, [state.phaseDeadline]);
 
-      const minutes = Math.floor(timeLeft / 60);
-      const seconds = timeLeft % 60;
+      const getPlayerScore = (uid) => {
+          let likes = 0, dislikes = 0;
+          Object.values(state.evaluations || {}).forEach(roundEvals => {
+              Object.values(roundEvals[uid] || {}).forEach(val => {
+                  if (val === 1) likes++;
+                  if (val === -1) dislikes++;
+              });
+          });
+          return { likes, dislikes };
+      };
+
+      const isLastRound = state.currentRound === state.totalRounds;
 
       return (
         <div className="flex-1 flex flex-col relative animate-in slide-in-from-bottom-8 duration-500">
-          
-          <div className="pt-8 pb-12 text-center text-white relative z-0 flex flex-col items-center">
-            <div className="bg-white/20 p-4 rounded-3xl backdrop-blur-md mb-4 shadow-inner border border-white/30">
-               <i className="ph-fill ph-chats-teardrop text-[60px] animate-pulse"></i>
+          <div className="pt-6 pb-8 text-center relative z-10 flex flex-col items-center">
+            <div className="w-16 h-16 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+               <i className="ph-fill ph-chats-teardrop text-white text-[32px]"></i>
             </div>
-            <h2 className="text-3xl font-black uppercase tracking-widest drop-shadow-md">Debate!</h2>
-            <div className={`mt-4 text-6xl font-black font-mono tracking-widest drop-shadow-xl ${timeLeft <= 30 ? 'text-red-200 animate-pulse' : 'text-white'}`}>
-              {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+            <h2 className="text-sm font-bold uppercase tracking-widest text-white/60 mb-1">Debate</h2>
+            <div className={`text-6xl font-black font-mono tracking-tighter drop-shadow-md ${timeLeft <= 30 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+              {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{(timeLeft % 60).toString().padStart(2, '0')}
             </div>
+            {isHost && (
+                <button onClick={skipDiscussion} className="mt-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors">
+                   {isLastRound ? <><i className="ph-bold ph-check-circle text-lg"></i> Iniciar Votação</> : <><i className="ph-bold ph-fast-forward text-lg"></i> Próxima Rodada</>}
+                </button>
+            )}
           </div>
 
-          <div className="bg-slate-50 rounded-t-[2.5rem] flex-1 w-full p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative z-10">
-            <h3 className="font-bold text-slate-400 uppercase tracking-widest text-xs mb-4 text-center">Resumo das Dicas</h3>
-            <div className="grid gap-3 overflow-y-auto max-h-[40vh] no-scrollbar pb-10">
-              {Object.entries(room.players).map(([uid, player]) => (
-                <div key={uid} className="bg-white p-4 rounded-3xl flex gap-3 shadow-sm border border-slate-100">
-                  <div className="font-black text-slate-700 w-24 text-sm break-words leading-tight">{player.name}</div>
-                  <div className="w-px bg-slate-100"></div>
-                  <div className="text-slate-500 font-medium italic flex-1">"{room.gameState.hints[uid] || '---'}"</div>
-                </div>
-              ))}
+          <div className="glass-card flex-1 w-full p-6 relative flex flex-col">
+            <h3 className="font-semibold text-white/50 text-xs mb-4">
+               Revisão: <span className="text-white">{themeName}</span> (Rodada {state.currentRound})
+            </h3>
+            
+            <div className="grid gap-4 overflow-y-auto no-scrollbar pb-10">
+              {Object.entries(room.players).map(([uid, player]) => {
+                const pastHints = state.allHints?.[uid] || [];
+                const currentHint = state.hints?.[uid] || "---";
+                const isMe = uid === user.uid;
+                const myEvalThisRound = state.evaluations?.[state.currentRound]?.[uid]?.[user.uid];
+
+                return (
+                  <div key={uid} className="bg-black/30 p-4 rounded-3xl border border-white/5 flex flex-col gap-3">
+                    <div className="flex justify-between items-center gap-2">
+                      <div className="font-semibold text-white/80 text-sm">{player.name}</div>
+                      
+                      <div className="flex items-center gap-1.5 bg-white/5 rounded-full p-1 border border-white/5">
+                         <button disabled={isMe} onClick={() => handleEvaluation(uid, 1)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isMe ? 'opacity-30' : ''} ${myEvalThisRound === 1 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'text-white/40 hover:bg-white/10 border border-transparent'}`}>
+                            <i className={myEvalThisRound === 1 ? "ph-fill ph-thumbs-up" : "ph-bold ph-thumbs-up"}></i>
+                         </button>
+                         <button disabled={isMe} onClick={() => handleEvaluation(uid, -1)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isMe ? 'opacity-30' : ''} ${myEvalThisRound === -1 ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'text-white/40 hover:bg-white/10 border border-transparent'}`}>
+                            <i className={myEvalThisRound === -1 ? "ph-fill ph-thumbs-down" : "ph-bold ph-thumbs-down"}></i>
+                         </button>
+                      </div>
+                    </div>
+
+                    <div>
+                        <div className="text-white font-medium text-lg">"{currentHint}"</div>
+                        
+                        {pastHints.length > 1 && (
+                            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/5">
+                                {pastHints.slice(0, -1).map((h, i) => (
+                                    <div key={i} className="text-[10px] bg-white/10 text-white/70 px-2 py-1 rounded-md font-medium flex gap-1 items-center">
+                                       <span className="opacity-50">R{i+1}</span> {h}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -666,54 +1056,62 @@
     }
 
     function VotingScreen({ room, user, submitVote }) {
-      const myVote = room.gameState.votes[user.uid];
+      const state = room.gameState;
+      const myVote = state.votes[user.uid];
+
+      const getPlayerScore = (uid) => {
+          let likes = 0, dislikes = 0;
+          Object.values(state.evaluations || {}).forEach(roundEvals => {
+              Object.values(roundEvals[uid] || {}).forEach(val => {
+                  if (val === 1) likes++;
+                  if (val === -1) dislikes++;
+              });
+          });
+          return { likes, dislikes };
+      };
+
       return (
         <div className="flex-1 flex flex-col relative animate-in zoom-in duration-300">
-          
-          <div className="pt-6 pb-10 px-6 text-center text-white relative z-0">
-             <h2 className="text-3xl font-black uppercase tracking-widest drop-shadow-md mb-2">Quem é o Impostor?</h2>
-             <p className="text-white/80 text-sm font-medium">Toque no cartão de quem parece perdido.</p>
+          <div className="pt-8 pb-8 px-6 text-center text-white relative z-10">
+             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20 border border-red-500/50 mb-3 shadow-[0_0_30px_rgba(239,68,68,0.3)]">
+                <i className="ph-fill ph-crosshair text-red-400 text-3xl"></i>
+             </div>
+             <h2 className="text-2xl font-bold tracking-tight">Votação</h2>
+             <p className="text-white/60 text-sm font-medium mt-1">Quem é o Impostor?</p>
           </div>
 
-          <div className="bg-slate-50 rounded-t-[2.5rem] flex-1 w-full p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative z-10 pb-10 overflow-y-auto no-scrollbar">
+          <div className="glass-card flex-1 w-full p-6 relative pb-10 overflow-y-auto no-scrollbar">
             <div className="grid grid-cols-2 gap-4">
               {Object.entries(room.players).map(([uid, player]) => {
                 const isSelected = myVote === uid;
                 const isMe = uid === user.uid;
+                const score = getPlayerScore(uid);
+                const trustBalance = score.likes - score.dislikes;
                 
                 return (
-                  <button 
-                    key={uid} 
-                    disabled={isMe || myVote} 
-                    onClick={() => submitVote(uid)} 
-                    className={`
-                      relative p-5 rounded-3xl text-center transition-all duration-300 shadow-sm border-2 flex flex-col items-center gap-3
-                      ${isMe ? 'opacity-40 cursor-not-allowed border-slate-100 bg-slate-100' : ''}
-                      ${!isMe && !myVote ? 'bg-white border-transparent hover:border-indigo-300 hover:shadow-md' : ''}
-                      ${isSelected ? 'bg-indigo-50 border-indigo-500 shadow-md transform scale-105' : ''}
-                      ${myVote && !isSelected && !isMe ? 'opacity-50 border-slate-100 bg-white' : ''}
-                    `}
-                  >
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-white text-2xl shadow-inner ${isSelected ? 'bg-indigo-500' : 'bg-slate-300'}`}>
-                      {player.name.charAt(0).toUpperCase()}
+                  <button key={uid} disabled={isMe || myVote} onClick={() => submitVote(uid)} className={`relative p-5 rounded-3xl text-center transition-all duration-300 border flex flex-col items-center gap-3 ${isMe ? 'opacity-30 border-white/5 bg-black/20 cursor-not-allowed' : ''} ${!isMe && !myVote ? 'bg-white/5 border-white/10 hover:border-white/30 hover:bg-white/10' : ''} ${isSelected ? 'bg-[var(--color-accent)]/20 border-[var(--color-accent)] shadow-[0_0_20px_rgba(var(--color-accent),0.4)] transform scale-105' : ''} ${myVote && !isSelected && !isMe ? 'opacity-30 border-white/5 bg-transparent' : ''}`}>
+                    
+                    <div className="absolute top-3 left-3 flex flex-col gap-1">
+                       {score.likes > 0 && <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1"><i className="ph-fill ph-thumbs-up"></i> {score.likes}</span>}
+                       {score.dislikes > 0 && <span className="text-[10px] font-semibold text-red-400 flex items-center gap-1"><i className="ph-fill ph-thumbs-down"></i> {score.dislikes}</span>}
+                    </div>
+
+                    <div className={`mt-3 w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl transition-colors ${isSelected ? 'bg-[var(--color-accent)] shadow-lg' : trustBalance < 0 ? 'bg-red-500/80' : 'bg-white/10'}`}>
+                      {player.isBot ? <i className="ph-fill ph-robot"></i> : player.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div className={`font-black text-sm ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>{player.name}</div>
-                      {isMe && <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">(Você)</div>}
+                      <div className={`font-semibold text-sm ${isSelected ? 'text-white' : 'text-white/80'}`}>{player.name}</div>
+                      {isMe && <div className="text-[9px] text-white/40 font-bold uppercase tracking-widest mt-1">Você</div>}
                     </div>
-                    {isSelected && (
-                      <div className="absolute -top-3 -right-3 bg-indigo-500 text-white p-1 rounded-full border-4 border-slate-50">
-                        <i className="ph-bold ph-check text-xl"></i>
-                      </div>
-                    )}
+                    {isSelected && <div className="absolute -top-2 -right-2 bg-[var(--color-accent)] text-white w-8 h-8 flex items-center justify-center rounded-full border-2 border-[#09090b] shadow-lg"><i className="ph-bold ph-check text-lg"></i></div>}
                   </button>
                 );
               })}
             </div>
             
             {myVote && (
-               <div className="mt-8 text-center bg-indigo-100 text-indigo-600 p-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 animate-pulse">
-                  <i className="ph-bold ph-hourglass-high"></i> Aguardando os demais votarem...
+               <div className="mt-8 text-center bg-white/5 border border-white/10 py-4 rounded-2xl font-medium text-sm text-white/60 flex items-center justify-center gap-2">
+                  <i className="ph-bold ph-circle-notch animate-spin text-[var(--color-accent)] text-xl"></i> Aguardando votos...
                </div>
             )}
           </div>
@@ -726,44 +1124,69 @@
       const voteCounts = Object.values(state.votes).reduce((acc, uid) => { acc[uid] = (acc[uid] || 0) + 1; return acc; }, {});
       const maxVotes = Math.max(...Object.values(voteCounts), 0);
       const mostVotedUids = Object.keys(voteCounts).filter(uid => voteCounts[uid] === maxVotes);
-      const impostorCaught = mostVotedUids.includes(state.impostorId) && mostVotedUids.length === 1;
+      
+      const impostorCaught = mostVotedUids.some(uid => state.impostorIds.includes(uid));
+
+      const bgGlow = impostorCaught ? 'radial-gradient(circle at center, rgba(52,211,153,0.15) 0%, transparent 70%)' : 'radial-gradient(circle at center, rgba(248,113,113,0.15) 0%, transparent 70%)';
+      const accentColor = impostorCaught ? 'text-emerald-400' : 'text-red-400';
+      const borderGlow = impostorCaught ? 'border-emerald-500/50 shadow-[0_0_30px_rgba(52,211,153,0.2)]' : 'border-red-500/50 shadow-[0_0_30px_rgba(248,113,113,0.2)]';
 
       return (
-        <div className="flex-1 flex flex-col relative animate-in slide-in-from-bottom-10 duration-700">
+        <div className="flex-1 flex flex-col relative animate-in zoom-in-95 duration-700 overflow-hidden" style={{ backgroundImage: bgGlow }}>
           
-          <div className="pt-8 pb-12 px-6 text-center text-white relative z-0 flex flex-col items-center">
-            <div className="text-white/80 font-bold uppercase tracking-widest text-sm mb-2">O Impostor era...</div>
-            <div className="text-5xl font-black uppercase tracking-widest drop-shadow-xl bg-white/20 px-8 py-4 rounded-3xl backdrop-blur-md border border-white/30">
-              {room.players[state.impostorId]?.name}
+          {impostorCaught && (
+            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+              {[...Array(30)].map((_, i) => (
+                <div key={i} className="confetti" style={{
+                  left: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 3}s`,
+                  backgroundColor: ['#34d399', '#6366f1', '#f97316', '#ffffff'][Math.floor(Math.random() * 4)]
+                }}></div>
+              ))}
             </div>
-            <div className="mt-4 font-medium flex items-center gap-2 bg-black/20 px-4 py-2 rounded-full text-sm">
-              <i className="ph-fill ph-magnifying-glass"></i> Palavra real: <span className="font-bold">{state.word}</span>
+          )}
+
+          <div className="pt-12 pb-10 px-6 text-center relative z-10 flex flex-col items-center">
+            <div className="text-white/50 font-bold uppercase tracking-widest text-xs mb-6">
+              {state.impostorIds.length > 1 ? 'OS IMPOSTORES ERAM' : 'O IMPOSTOR ERA'}
+            </div>
+            
+            <div className="flex flex-col gap-4 mb-10 w-full max-w-[280px]">
+               {state.impostorIds.map(id => (
+                   <div key={id} className={`text-2xl font-bold bg-white/10 backdrop-blur-md px-6 py-4 rounded-3xl border flex items-center justify-center gap-3 ${borderGlow}`}>
+                      <i className={`ph-fill ${impostorCaught ? 'ph-mask-sad opacity-50' : 'ph-mask-happy'} ${accentColor}`}></i> {room.players[id]?.name}
+                   </div>
+               ))}
+            </div>
+            
+            <div className="flex flex-col items-center gap-1 bg-black/40 border border-white/10 px-8 py-4 rounded-[2rem] shadow-inner">
+              <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">A Palavra era</span>
+              <span className="font-black text-2xl text-white tracking-tight text-center">{state.word}</span>
             </div>
           </div>
 
-          <div className="bg-slate-50 rounded-t-[2.5rem] flex-1 w-full p-8 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] relative z-10 pb-10 flex flex-col">
+          <div className="glass-card flex-1 w-full p-6 relative pb-10 flex flex-col z-10">
             
-            {/* Banner de Resultado */}
-            <div className={`-mt-14 mb-8 p-4 rounded-2xl text-center font-black uppercase tracking-widest text-white shadow-lg ${impostorCaught ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-               {impostorCaught ? 'Vocês Venceram!' : 'O Impostor Venceu!'}
+            <div className={`-mt-12 mx-auto inline-flex items-center gap-2 px-8 py-3 rounded-full text-center font-bold uppercase tracking-widest text-white border shadow-lg z-20 ${impostorCaught ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-100' : 'bg-red-500/20 border-red-500/50 text-red-100'}`}>
+               {impostorCaught ? <><i className="ph-fill ph-trophy text-emerald-400 text-lg"></i> Grupo Venceu</> : <><i className="ph-fill ph-skull text-red-400 text-lg"></i> Impostor Venceu</>}
             </div>
 
-            <h3 className="font-bold text-slate-400 uppercase tracking-widest text-xs mb-4 text-center">Contagem de Votos</h3>
-            <div className="space-y-3 mb-auto">
+            <div className="mt-8 space-y-3 mb-auto">
+              <h3 className="font-bold text-white/40 uppercase tracking-widest text-[10px] mb-4 text-center">Urnas de Votação</h3>
               {Object.entries(room.players).map(([uid, player]) => {
-                const isImpostor = uid === state.impostorId;
+                const isImpostor = state.impostorIds.includes(uid);
                 const v = voteCounts[uid] || 0;
                 if (v === 0 && !isImpostor) return null;
                 
                 return (
-                  <div key={uid} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100">
-                    <div className="font-black text-slate-700 flex items-center gap-2">
+                  <div key={uid} className="bg-black/20 p-4 rounded-2xl flex justify-between items-center border border-white/5">
+                    <div className="font-medium text-white/80 text-sm flex items-center gap-2">
                        {player.name} 
-                       {isImpostor && <i className="ph-fill ph-mask-sad text-rose-500 text-lg"></i>}
+                       {isImpostor && <i className={`ph-fill ph-warning ${accentColor} text-lg`}></i>}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1.5 flex-wrap justify-end">
                       {Array.from({length: v}).map((_, i) => (
-                         <div key={i} className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                         <div key={i} className="w-3 h-3 rounded-full bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.5)]"></div>
                       ))}
                     </div>
                   </div>
@@ -772,11 +1195,8 @@
             </div>
 
             {isHost && (
-               <button 
-                 onClick={restartGame} 
-                 className="mt-8 w-full bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-black py-5 px-6 rounded-[2rem] shadow-[0_10px_25px_rgba(16,185,129,0.3)] transform hover:-translate-y-1 transition-all flex justify-center items-center gap-2 text-lg"
-               >
-                 <i className="ph-fill ph-arrow-counter-clockwise text-2xl"></i> Jogar Novamente
+               <button onClick={restartGame} className="mt-10 w-full btn-gradient py-4 rounded-full font-bold text-lg flex justify-center items-center gap-2 shadow-xl">
+                 <i className="ph-bold ph-arrow-counter-clockwise text-xl"></i> Jogar Novamente
                </button>
             )}
           </div>
@@ -784,9 +1204,6 @@
       );
     }
 
-    // ==========================================================
-    // INICIALIZAÇÃO DO REACT
-    // ==========================================================
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
