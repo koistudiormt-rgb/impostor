@@ -352,14 +352,14 @@
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
-      // FUNÇÃO MESTRE: EVITA PULO DE JOGADORES (CORREÇÃO DE BUG)
+      // FUNÇÃO MESTRE: EVITA PULO DE JOGADORES (Garante o tempo individual exato)
       const executeTurnAdvance = async (roomId, targetUid, hint = null) => {
           const roomRef = getRoomRef(roomId);
           const doc = await roomRef.get();
           const d = doc.data();
           const state = d.gameState;
 
-          // Proteção contra Condição de Corrida: Se não for mais o turno desse jogador, não faça nada.
+          // Proteção contra Condição de Corrida:
           if (state.currentTurnIndex >= state.turnOrder.length || state.turnOrder[state.currentTurnIndex] !== targetUid) return;
 
           const updates = {};
@@ -377,6 +377,7 @@
               updates.status = 'discussing'; // Usaremos a tela de discussing para revisão
               updates['gameState.phaseDeadline'] = Date.now() + 10000; // FIXO: 10 Segundos de animação e revisão
           } else {
+              // TEMPO INDIVIDUAL: Só começa a contar o tempo da próxima pessoa no momento exato em que a vez dela inicia!
               updates['gameState.turnDeadline'] = Date.now() + (d.settings.hintTime * 1000);
           }
 
@@ -413,6 +414,7 @@
             const currentUid = state.turnOrder[state.currentTurnIndex];
             const isBot = room.players[currentUid]?.isBot;
             
+            // BOTS continuam sendo automáticos e respondem sozinhos
             if (isBot && !state.hints[currentUid]) {
                 const turnDuration = room.settings.hintTime * 1000;
                 if ((state.turnDeadline - now) < (turnDuration - 3000)) {
@@ -420,10 +422,8 @@
                     const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
                     await executeTurnAdvance(room.id, currentUid, botHint);
                 }
-            } else if (now >= state.turnDeadline && !isBot) {
-                // O tempo da pessoa real esgotou
-                await executeTurnAdvance(room.id, currentUid, null);
-            }
+            } 
+            // HUMANOS NUNCA SÃO PULADOS: Só o Bot faz a jogada automática. O humano é obrigado a digitar para a rodada seguir.
           } 
           else if (room.status === 'discussing' && state?.phaseDeadline) {
             // Tempo dos 10 segundos da revisão acabou
@@ -436,6 +436,7 @@
                  await getRoomRef(room.id).update({ status: 'finished' });
              }
 
+             // BOTS dando Múltiplos Votos
              const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
              bots.forEach(botUid => {
                  if (!state.votes[botUid] && Math.random() < 0.2) { 
@@ -443,9 +444,14 @@
                      roomRef.get().then(doc => {
                          const d = doc.data();
                          if (!d.gameState.votes[botUid]) {
+                             const numImpostors = d.settings.impostorsCount || 1;
                              const targets = Object.keys(d.players).filter(id => id !== botUid);
-                             const target = targets[Math.floor(Math.random() * targets.length)];
-                             const newVotes = { ...d.gameState.votes, [botUid]: target };
+                             
+                             // O bot embaralha a lista e pega a quantidade exata de suspeitos
+                             const shuffled = targets.sort(() => Math.random() - 0.5);
+                             const selectedTargets = shuffled.slice(0, numImpostors);
+
+                             const newVotes = { ...d.gameState.votes, [botUid]: selectedTargets };
                              roomRef.update({ 'gameState.votes': newVotes }).then(() => {
                                  if (Object.keys(newVotes).length === Object.keys(d.players).length) {
                                      roomRef.update({ status: 'finished' });
@@ -466,7 +472,6 @@
         const roomRef = getRoomRef(newRoomId);
         const initialData = {
           id: newRoomId, hostId: user.uid, status: 'lobby',
-          // O tempo de review (antigo discuss) agora é fixo no código, deixamos apenas os configuráveis aqui
           settings: { categoryPreset: 'Animais', hintTime: 15, voteTime: 60, impostorsCount: 1, roundsCount: 1 },
           players: { [user.uid]: { name: playerName, isHost: true } },
           usedWords: [], 
@@ -584,13 +589,13 @@
 
       const submitHint = async (hint) => {
         if (!hint.trim()) return;
-        // Delega o avanço para a nossa função que previne os bugs
         await executeTurnAdvance(room.id, user.uid, hint);
       };
 
-      const submitVote = async (targetUid) => {
+      // VOTAÇÃO: Agora envia um ARRAY de IDs
+      const submitVoteArray = async (targetUidsArray) => {
         const roomRef = getRoomRef(room.id);
-        const updatedVotes = { ...room.gameState.votes, [user.uid]: targetUid };
+        const updatedVotes = { ...room.gameState.votes, [user.uid]: targetUidsArray };
         await roomRef.update({ 'gameState.votes': updatedVotes });
         if (Object.keys(updatedVotes).length === Object.keys(room.players).length) {
           await roomRef.update({ status: 'finished' });
@@ -666,7 +671,7 @@
                 <HomeScreen playerName={playerName} setPlayerName={setPlayerName} roomCodeInput={roomCodeInput} setRoomCodeInput={setRoomCodeInput} handleCreateRoom={handleCreateRoom} handleJoinRoom={handleJoinRoom} />
               ) : (
                 <GameContainer 
-                    room={room} user={user} startGame={startGame} submitHint={submitHint} submitVote={submitVote} 
+                    room={room} user={user} startGame={startGame} submitHint={submitHint} submitVoteArray={submitVoteArray} 
                     restartGame={restartGame} updateSetting={updateSetting} handleAddBot={handleAddBot} handleRemoveBot={handleRemoveBot}
                     isStartingGame={isStartingGame} categoryTheme={categoryTheme}
                 />
@@ -953,8 +958,9 @@
               })}
             </div>
 
+            {/* BARRA Z-50 PARA GARANTIR O CLIQUE DO JOGADOR */}
             {isMyTurn && (
-              <div className="absolute bottom-6 left-6 right-6 animate-in slide-in-from-bottom-4">
+              <div className="absolute bottom-6 left-6 right-6 animate-in slide-in-from-bottom-4 z-50">
                 <form onSubmit={e => { e.preventDefault(); submitHint(hintInput); setHintInput(''); }} className="bg-black/60 backdrop-blur-xl p-2 rounded-full border border-white/20 shadow-2xl flex gap-2">
                   <input type="text" autoFocus value={hintInput} onChange={e => setHintInput(e.target.value)} placeholder="Escreva sua dica..." className="flex-1 bg-transparent px-5 text-white font-medium focus:outline-none placeholder-white/30" maxLength={40} />
                   <button type="submit" disabled={!hintInput.trim()} className="btn-gradient text-white font-bold w-12 h-12 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50">
@@ -968,7 +974,6 @@
       );
     }
 
-    // NOVA TELA DE REVISÃO (DOSSIÊ DOS JOGADORES) COM HISTÓRICO E ANIMAÇÕES
     function ReviewScreen({ room }) {
       const state = room.gameState;
       const [timeLeft, setTimeLeft] = useState(10);
@@ -1005,10 +1010,7 @@
             <div className="grid gap-4 overflow-y-auto no-scrollbar pb-10 pr-2">
               {state.turnOrder.map((uid, index) => {
                 const player = room.players[uid];
-                // Pega TODAS as dicas do jogador até agora (R1, R2, etc)
                 const pastHints = state.allHints?.[uid] || [];
-                
-                // Animação em cascata para cada card de jogador
                 const delay = index * 300; 
 
                 return (
@@ -1022,7 +1024,6 @@
                         transform: 'translateY(20px)'
                     }}
                   >
-                    {/* Detalhe visual na borda esquerda do card */}
                     <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[var(--color-glow-1)] to-[var(--color-glow-2)]"></div>
 
                     <div className="font-bold text-white text-sm mb-3 flex items-center gap-2">
@@ -1062,16 +1063,38 @@
       );
     }
 
-    function VotingScreen({ room, user, submitVote }) {
+    // NOVA TELA DE VOTAÇÃO: Suporte a múltiplos votos
+    function VotingScreen({ room, user, submitVoteArray }) {
       const state = room.gameState;
-      const myVote = state.votes[user.uid];
       const [timeLeft, setTimeLeft] = useState(room.settings.voteTime || 60);
+      
+      const maxVotes = room.settings.impostorsCount || 1;
+      const myVoteArray = state.votes[user.uid]; 
+      const hasVoted = !!myVoteArray;
+      
+      // Estado local de seleção Múltipla
+      const [selectedUids, setSelectedUids] = useState([]);
 
       useEffect(() => {
         if (!state.voteDeadline) return;
         const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.voteDeadline - Date.now()) / 1000))), 1000);
         return () => clearInterval(int);
       }, [state.voteDeadline]);
+
+      const toggleSelection = (uid) => {
+          if (hasVoted) return;
+          if (selectedUids.includes(uid)) {
+              setSelectedUids(selectedUids.filter(id => id !== uid));
+          } else if (selectedUids.length < maxVotes) {
+              setSelectedUids([...selectedUids, uid]);
+          }
+      };
+
+      const handleConfirm = () => {
+          if (selectedUids.length === maxVotes) {
+              submitVoteArray(selectedUids);
+          }
+      };
 
       return (
         <div className="flex-1 flex flex-col relative animate-in zoom-in duration-300">
@@ -1082,21 +1105,36 @@
                </div>
              </div>
              <h2 className="text-2xl font-bold tracking-tight">Votação</h2>
-             <p className="text-white/60 text-sm font-medium mt-1">Quem é o Impostor?</p>
+             <p className="text-[var(--color-accent)] text-xs font-bold uppercase tracking-widest mt-1">
+                 Selecione {maxVotes} suspeito{maxVotes > 1 ? 's' : ''}
+             </p>
              
              <div className={`mt-3 inline-block px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 10 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
                  00:{timeLeft.toString().padStart(2, '0')}
              </div>
           </div>
 
-          <div className="glass-card flex-1 w-full p-6 relative pb-10 overflow-y-auto no-scrollbar">
+          <div className="glass-card flex-1 w-full p-6 relative pb-10 overflow-y-auto no-scrollbar flex flex-col">
             <div className="grid grid-cols-2 gap-4">
               {Object.entries(room.players).map(([uid, player]) => {
-                const isSelected = myVote === uid;
+                // Checa se já votou e a pessoa está no array final, ou se está na seleção local agora
+                const isSelected = hasVoted ? myVoteArray.includes(uid) : selectedUids.includes(uid);
                 const isMe = uid === user.uid;
                 
+                // Opacidade se já escolheu o máximo e esse card não está incluso
+                const isDimmed = !isMe && !isSelected && selectedUids.length === maxVotes && !hasVoted;
+                
                 return (
-                  <button key={uid} disabled={isMe || myVote} onClick={() => submitVote(uid)} className={`relative p-5 rounded-3xl text-center transition-all duration-300 border flex flex-col items-center gap-3 ${isMe ? 'opacity-30 border-white/5 bg-black/20 cursor-not-allowed' : ''} ${!isMe && !myVote ? 'bg-white/5 border-white/10 hover:border-white/30 hover:bg-white/10' : ''} ${isSelected ? 'bg-[var(--color-accent)]/20 border-[var(--color-accent)] shadow-[0_0_20px_rgba(var(--color-accent),0.4)] transform scale-105' : ''} ${myVote && !isSelected && !isMe ? 'opacity-30 border-white/5 bg-transparent' : ''}`}>
+                  <button 
+                    key={uid} 
+                    disabled={isMe || hasVoted} 
+                    onClick={() => toggleSelection(uid)} 
+                    className={`relative p-5 rounded-3xl text-center transition-all duration-300 border flex flex-col items-center gap-3 
+                        ${isMe ? 'opacity-30 border-white/5 bg-black/20 cursor-not-allowed' : ''} 
+                        ${!isMe && !isSelected ? 'bg-white/5 border-white/10 hover:border-white/30 hover:bg-white/10' : ''} 
+                        ${isSelected ? 'bg-[var(--color-accent)]/20 border-[var(--color-accent)] shadow-[0_0_20px_rgba(var(--color-accent),0.4)] transform scale-105' : ''} 
+                        ${isDimmed ? 'opacity-30' : ''}`
+                    }>
                     
                     <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-white text-2xl transition-colors ${isSelected ? 'bg-[var(--color-accent)] shadow-lg' : 'bg-white/10'}`}>
                       {player.isBot ? <i className="ph-fill ph-robot"></i> : player.name.charAt(0).toUpperCase()}
@@ -1111,9 +1149,15 @@
               })}
             </div>
             
-            {myVote && (
-               <div className="mt-8 text-center bg-white/5 border border-white/10 py-4 rounded-2xl font-medium text-sm text-white/60 flex items-center justify-center gap-2">
-                  <i className="ph-bold ph-circle-notch animate-spin text-[var(--color-accent)] text-xl"></i> Aguardando votos...
+            {!hasVoted && selectedUids.length === maxVotes && (
+                <button onClick={handleConfirm} className="mt-8 w-full btn-gradient py-4 rounded-full font-bold text-lg flex justify-center items-center gap-2 shadow-xl animate-in slide-in-from-bottom-4">
+                    <i className="ph-bold ph-check-circle"></i> Confirmar Votos
+                </button>
+            )}
+
+            {hasVoted && (
+               <div className="mt-auto pt-8 text-center text-white/60 flex items-center justify-center gap-2">
+                  <i className="ph-bold ph-circle-notch animate-spin text-[var(--color-accent)] text-xl"></i> Aguardando demais jogadores...
                </div>
             )}
           </div>
@@ -1121,13 +1165,37 @@
       );
     }
 
+    // NOVA TELA DE RESULTADO: Lógica de Maioria Exata e Cruzamento de Múltiplos Votos
     function ResultScreen({ room, isHost, restartGame }) {
       const state = room.gameState;
-      const voteCounts = Object.values(state.votes).reduce((acc, uid) => { acc[uid] = (acc[uid] || 0) + 1; return acc; }, {});
-      const maxVotes = Math.max(...Object.values(voteCounts), 0);
-      const mostVotedUids = Object.keys(voteCounts).filter(uid => voteCounts[uid] === maxVotes);
+      const impostorsCount = room.settings.impostorsCount || 1;
+
+      // 1. Contabiliza TODOS os votos (os arrays de todos os jogadores)
+      const voteCounts = {};
+      Object.values(state.votes).forEach(voteData => {
+          if (Array.isArray(voteData)) {
+              voteData.forEach(uid => { voteCounts[uid] = (voteCounts[uid] || 0) + 1; });
+          } else if (voteData) { // Fallback se tiver dado velho no BD
+              voteCounts[voteData] = (voteCounts[voteData] || 0) + 1;
+          }
+      });
+
+      // 2. Ordena os jogadores que receberam votos, do maior pro menor
+      const sortedUidsByVotes = Object.keys(room.players).sort((a, b) => (voteCounts[b] || 0) - (voteCounts[a] || 0));
       
-      const impostorCaught = mostVotedUids.some(uid => state.impostorIds.includes(uid));
+      // 3. Define a "Linha de Corte" dos Acusados. 
+      // Ex: Se tem 2 impostores, pegamos a quantidade de votos do 2º jogador mais votado. 
+      // Todos que tiverem votos >= a isso serão considerados "Acusados" (isso lida com empates perfeitamente!)
+      let threshold = 0;
+      if (sortedUidsByVotes.length > 0) {
+          threshold = voteCounts[sortedUidsByVotes[Math.min(impostorsCount - 1, sortedUidsByVotes.length - 1)]] || 0;
+      }
+      
+      const accusedUids = sortedUidsByVotes.filter(uid => (voteCounts[uid] || 0) >= threshold && (voteCounts[uid] || 0) > 0);
+
+      // 4. VEREDITO FINAL: O grupo só vence se TODOS os verdadeiros impostores estiverem dentro da lista de 'accusedUids'
+      const allImpostorsCaught = state.impostorIds.length > 0 && state.impostorIds.every(id => accusedUids.includes(id));
+      const impostorCaught = allImpostorsCaught;
 
       const bgGlow = impostorCaught ? 'radial-gradient(circle at center, rgba(52,211,153,0.15) 0%, transparent 70%)' : 'radial-gradient(circle at center, rgba(248,113,113,0.15) 0%, transparent 70%)';
       const accentColor = impostorCaught ? 'text-emerald-400' : 'text-red-400';
@@ -1170,25 +1238,27 @@
           <div className="glass-card flex-1 w-full p-6 relative pb-10 flex flex-col z-10">
             
             <div className={`-mt-12 mx-auto inline-flex items-center gap-2 px-8 py-3 rounded-full text-center font-bold uppercase tracking-widest text-white border shadow-lg z-20 ${impostorCaught ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-100' : 'bg-red-500/20 border-red-500/50 text-red-100'}`}>
-               {impostorCaught ? <><i className="ph-fill ph-trophy text-emerald-400 text-lg"></i> Grupo Venceu</> : <><i className="ph-fill ph-skull text-red-400 text-lg"></i> Impostor Venceu</>}
+               {impostorCaught ? <><i className="ph-fill ph-users text-emerald-400 text-lg"></i> Grupo Venceu!</> : <><i className="ph-fill ph-mask-happy text-red-400 text-lg"></i> Impostores Venceram!</>}
             </div>
 
             <div className="mt-8 space-y-3 mb-auto">
-              <h3 className="font-bold text-white/40 uppercase tracking-widest text-[10px] mb-4 text-center">Urnas de Votação</h3>
+              <h3 className="font-bold text-white/40 uppercase tracking-widest text-[10px] mb-4 text-center">Urnas de Votação (Acusados)</h3>
               {Object.entries(room.players).map(([uid, player]) => {
                 const isImpostor = state.impostorIds.includes(uid);
+                const isAccused = accusedUids.includes(uid); // Fica destacado quem o grupo achou que era
                 const v = voteCounts[uid] || 0;
+                
                 if (v === 0 && !isImpostor) return null;
                 
                 return (
-                  <div key={uid} className="bg-black/20 p-4 rounded-2xl flex justify-between items-center border border-white/5">
+                  <div key={uid} className={`bg-black/20 p-4 rounded-2xl flex justify-between items-center border ${isAccused ? 'border-[var(--color-accent)]/50 bg-[var(--color-accent)]/5' : 'border-white/5'}`}>
                     <div className="font-medium text-white/80 text-sm flex items-center gap-2">
                        {player.name} 
                        {isImpostor && <i className={`ph-fill ph-warning ${accentColor} text-lg`}></i>}
                     </div>
                     <div className="flex gap-1.5 flex-wrap justify-end">
                       {Array.from({length: v}).map((_, i) => (
-                         <div key={i} className="w-3 h-3 rounded-full bg-white/80 shadow-[0_0_10px_rgba(255,255,255,0.5)]"></div>
+                         <div key={i} className={`w-3 h-3 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)] ${isAccused ? 'bg-[var(--color-accent)]' : 'bg-white/80'}`}></div>
                       ))}
                     </div>
                   </div>
