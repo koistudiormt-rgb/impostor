@@ -359,7 +359,7 @@
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
-      // FUNÇÃO MESTRE: EVITA PULO DE JOGADORES (Garante o tempo individual exato)
+      // FUNÇÃO MESTRE: EVITA PULO DE JOGADORES (Guarda o START TIME para não ter falha de sincronia)
       const executeTurnAdvance = async (roomId, targetUid, hint = null) => {
           const roomRef = getRoomRef(roomId);
           const doc = await roomRef.get();
@@ -383,14 +383,15 @@
               if (state.currentRound < state.totalRounds) {
                   // Pausa de 3 segundos no Dossiê antes de ir para a próxima rodada
                   updates.status = 'discussing'; 
-                  updates['gameState.phaseDeadline'] = Date.now() + 3000; 
+                  updates['gameState.phaseStartTime'] = Date.now(); 
               } else {
-                  // Vai direto para o Dossiê/Votação com o tempo total de votação
+                  // Vai direto para o Dossiê/Votação
                   updates.status = 'voting'; 
-                  updates['gameState.voteDeadline'] = Date.now() + ((d.settings.voteTime || 60) * 1000);
+                  updates['gameState.voteStartTime'] = Date.now();
               }
           } else {
-              updates['gameState.turnDeadline'] = Date.now() + (d.settings.hintTime * 1000);
+              // Tempo individual exato de quem vai jogar agora
+              updates['gameState.turnStartTime'] = Date.now();
           }
 
           await roomRef.update(updates);
@@ -398,72 +399,86 @@
 
       const handleNextPhaseFromReview = async (currentRoom, state) => {
           const roomRef = getRoomRef(currentRoom.id);
-          // O discussing agora é SÓ para a pausa de 3s entre as rodadas
           if (state.currentRound < state.totalRounds) {
               await roomRef.update({
                   status: 'hinting',
                   'gameState.currentRound': state.currentRound + 1,
                   'gameState.currentTurnIndex': 0,
                   'gameState.hints': {}, 
-                  'gameState.turnDeadline': Date.now() + (currentRoom.settings.hintTime * 1000)
-              });
+                  'gameState.turnStartTime': Date.now()
+              }).catch(()=>{}); // Catch para evitar erros se outro jogador já atualizou
           }
       };
 
-      // RELÓGIO MESTRE E BOTS
+      // RELÓGIO MESTRE BLINDADO - Qualquer jogador pode acionar o gatilho se o Host "dormir"
       useEffect(() => {
-        if (!user || !room || room.hostId !== user.uid) return;
+        if (!user || !room) return;
 
         const interval = setInterval(async () => {
           const now = Date.now();
           const state = room.gameState;
+          const isHost = room.hostId === user.uid;
 
-          if (room.status === 'hinting' && state?.turnDeadline) {
-            const currentUid = state.turnOrder[state.currentTurnIndex];
-            const isBot = room.players[currentUid]?.isBot;
-            
-            if (isBot && !state.hints[currentUid]) {
-                const turnDuration = room.settings.hintTime * 1000;
-                if ((state.turnDeadline - now) < (turnDuration - 3000)) {
-                    const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem"];
-                    const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
-                    await executeTurnAdvance(room.id, currentUid, botHint);
-                }
-            } 
+          // 1. Apenas o Host move os BOTS
+          if (room.status === 'hinting' && state?.turnStartTime) {
+             const currentUid = state.turnOrder[state.currentTurnIndex];
+             const isBot = room.players[currentUid]?.isBot;
+             
+             if (isHost && isBot && !state.hints[currentUid]) {
+                 const elapsed = now - state.turnStartTime;
+                 const turnDuration = (room.settings.hintTime || 15) * 1000;
+                 if (elapsed >= (turnDuration - 3000)) {
+                     const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Já ouvi falar", "Tem cores"];
+                     const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
+                     await executeTurnAdvance(room.id, currentUid, botHint);
+                 }
+             }
           } 
-          else if (room.status === 'discussing' && state?.phaseDeadline) {
-            if (now >= state.phaseDeadline) {
-                await handleNextPhaseFromReview(room, state);
-            }
+          // 2. Transição da Pausa (3s) para a nova rodada
+          // Todos checam, se o Host não fizer, outro jogador faz. Isso impede o travamento!
+          else if (room.status === 'discussing' && state?.phaseStartTime) {
+             const elapsed = now - state.phaseStartTime;
+             const triggerDelay = isHost ? 3000 : 5000; // Host tenta em 3s, outros tentam em 5s caso o host caia.
+             if (elapsed >= triggerDelay) {
+                 await handleNextPhaseFromReview(room, state);
+             }
           } 
-          else if (room.status === 'voting') {
-             if (state?.voteDeadline && now >= state.voteDeadline) {
-                 await getRoomRef(room.id).update({ status: 'finished' });
+          // 3. Fim da Votação
+          else if (room.status === 'voting' && state?.voteStartTime) {
+             const elapsed = now - state.voteStartTime;
+             const voteDuration = (room.settings.voteTime || 60) * 1000;
+             const triggerDelay = isHost ? voteDuration : voteDuration + 2000;
+
+             if (elapsed >= triggerDelay) {
+                 await getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
              }
 
-             const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
-             bots.forEach(botUid => {
-                 if (!state.votes[botUid] && Math.random() < 0.2) { 
-                     const roomRef = getRoomRef(room.id);
-                     roomRef.get().then(doc => {
-                         const d = doc.data();
-                         if (!d.gameState.votes[botUid]) {
-                             const numImpostors = d.settings.impostorsCount || 1;
-                             const targets = Object.keys(d.players).filter(id => id !== botUid);
-                             
-                             const shuffled = targets.sort(() => Math.random() - 0.5);
-                             const selectedTargets = shuffled.slice(0, numImpostors);
+             // BOTS Votam (Apenas o Host calcula isso)
+             if (isHost) {
+                 const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
+                 bots.forEach(botUid => {
+                     if (!state.votes[botUid] && Math.random() < 0.2) { 
+                         const roomRef = getRoomRef(room.id);
+                         roomRef.get().then(doc => {
+                             const d = doc.data();
+                             if (!d.gameState.votes[botUid]) {
+                                 const numImpostors = d.settings.impostorsCount || 1;
+                                 const targets = Object.keys(d.players).filter(id => id !== botUid);
+                                 
+                                 const shuffled = targets.sort(() => Math.random() - 0.5);
+                                 const selectedTargets = shuffled.slice(0, numImpostors);
 
-                             const newVotes = { ...d.gameState.votes, [botUid]: selectedTargets };
-                             roomRef.update({ 'gameState.votes': newVotes }).then(() => {
-                                 if (Object.keys(newVotes).length === Object.keys(d.players).length) {
-                                     roomRef.update({ status: 'finished' });
-                                 }
-                             });
-                         }
-                     });
-                 }
-             });
+                                 const newVotes = { ...d.gameState.votes, [botUid]: selectedTargets };
+                                 roomRef.update({ 'gameState.votes': newVotes }).then(() => {
+                                     if (Object.keys(newVotes).length === Object.keys(d.players).length) {
+                                         roomRef.update({ status: 'finished' }).catch(()=>{});
+                                     }
+                                 });
+                             }
+                         });
+                     }
+                 });
+             }
           }
         }, 1000);
         return () => clearInterval(interval);
@@ -586,8 +601,8 @@
           usedWords: nextUsedWords,
           gameState: {
             word: secretWord, impostorIds: impostorIds, turnOrder: turnOrder,
-            currentRound: 1, totalRounds: room.settings.roundsCount || 1,
-            currentTurnIndex: 0, turnDeadline: Date.now() + (room.settings.hintTime * 1000),
+            currentRound: 1, totalRounds: parseInt(room.settings.roundsCount) || 1,
+            currentTurnIndex: 0, turnStartTime: Date.now(),
             hints: {}, allHints: {}, votes: {}
           }
         });
@@ -883,14 +898,20 @@
       const isImpostor = state.impostorIds.includes(user.uid);
       const isMyTurn = state.turnOrder[state.currentTurnIndex] === user.uid;
       const [hintInput, setHintInput] = useState('');
-      const [timeLeft, setTimeLeft] = useState(room.settings.hintTime);
+      
+      // Relógio estritamente local: Garante que TODO jogador tenha seus exatos 15s a partir de quando a vez é passada para ele.
+      const initialTime = parseInt(room.settings.hintTime) || 15;
+      const [timeLeft, setTimeLeft] = useState(initialTime);
 
       const themeName = room.settings.categoryPreset;
 
       useEffect(() => {
-        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.turnDeadline - Date.now()) / 1000))), 500);
+        setTimeLeft(initialTime);
+        const int = setInterval(() => {
+            setTimeLeft(prev => Math.max(0, prev - 1));
+        }, 1000);
         return () => clearInterval(int);
-      }, [state.turnDeadline]);
+      }, [state.currentTurnIndex, initialTime]);
 
       return (
         <div className="flex-1 flex flex-col relative animate-in zoom-in-95 duration-500">
@@ -981,15 +1002,16 @@
       );
     }
 
-    // TELA DE PAUSA (3s) ENTRE RODADAS
+    // TELA DE PAUSA (3s) ENTRE RODADAS (Cronômetro 100% individual)
     function ReviewScreen({ room }) {
       const state = room.gameState;
       const [timeLeft, setTimeLeft] = useState(3);
       
       useEffect(() => {
-        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.phaseDeadline - Date.now()) / 1000))), 500);
+        setTimeLeft(3);
+        const int = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000);
         return () => clearInterval(int);
-      }, [state.phaseDeadline]);
+      }, [state.currentRound]);
 
       return (
         <div className="flex-1 flex flex-col relative animate-in slide-in-from-bottom-8 duration-500">
@@ -1069,22 +1091,23 @@
       );
     }
 
-    // NOVA TELA DE VOTAÇÃO: Integrada com o Dossiê e com suporte a Múltiplos Votos
+    // TELA DE VOTAÇÃO: Integrada com o Dossiê e Check visual para orientar clique
     function VotingScreen({ room, user, submitVoteArray }) {
       const state = room.gameState;
-      const [timeLeft, setTimeLeft] = useState(room.settings.voteTime || 60);
+      const initialTime = parseInt(room.settings.voteTime) || 60;
+      const [timeLeft, setTimeLeft] = useState(initialTime);
       
-      const maxVotes = room.settings.impostorsCount || 1;
+      const maxVotes = parseInt(room.settings.impostorsCount) || 1;
       const myVoteArray = state.votes[user.uid]; 
       const hasVoted = !!myVoteArray;
       
       const [selectedUids, setSelectedUids] = useState([]);
 
       useEffect(() => {
-        if (!state.voteDeadline) return;
-        const int = setInterval(() => setTimeLeft(Math.max(0, Math.ceil((state.voteDeadline - Date.now()) / 1000))), 1000);
+        setTimeLeft(initialTime);
+        const int = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000);
         return () => clearInterval(int);
-      }, [state.voteDeadline]);
+      }, [initialTime]);
 
       const toggleSelection = (uid) => {
           if (hasVoted) return;
@@ -1156,7 +1179,13 @@
                             </div>
                             <span>{player.name} {isMe && <span className="text-[10px] text-white/40 uppercase tracking-widest ml-1">(Você)</span>}</span>
                         </div>
-                        {isSelected && <div className="bg-[var(--color-accent)] text-white w-6 h-6 flex items-center justify-center rounded-full shadow-lg"><i className="ph-bold ph-check text-sm"></i></div>}
+                        
+                        {/* CHECKBOX VISUAL: Check apagado se não selecionado, Check vivo se selecionado */}
+                        {!isMe && (
+                            <div className={`w-7 h-7 flex items-center justify-center rounded-full shadow-lg border-2 transition-all duration-300 ${isSelected ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white' : 'bg-black/40 border-white/10 text-white/10 group-hover:border-white/30'}`}>
+                                <i className={`ph-bold ph-check ${isSelected ? 'text-base' : 'text-xs'}`}></i>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex flex-col gap-2 pl-2">
@@ -1203,7 +1232,7 @@
 
     function ResultScreen({ room, isHost, restartGame }) {
       const state = room.gameState;
-      const impostorsCount = room.settings.impostorsCount || 1;
+      const impostorsCount = parseInt(room.settings.impostorsCount) || 1;
 
       const voteCounts = {};
       Object.values(state.votes).forEach(voteData => {
