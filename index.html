@@ -359,7 +359,7 @@
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
-      // FUNÇÃO MESTRE: EVITA PULO DE JOGADORES (Guarda o START TIME para não ter falha de sincronia)
+      // FUNÇÃO MESTRE: Avanca o turno e define sempre o Dossiê (discussing) ao final de toda rodada.
       const executeTurnAdvance = async (roomId, targetUid, hint = null) => {
           const roomRef = getRoomRef(roomId);
           const doc = await roomRef.get();
@@ -380,37 +380,18 @@
           updates['gameState.currentTurnIndex'] = nextIndex;
 
           if (nextIndex >= state.turnOrder.length) {
-              if (state.currentRound < state.totalRounds) {
-                  // Pausa de 3 segundos no Dossiê antes de ir para a próxima rodada
-                  updates.status = 'discussing'; 
-                  updates['gameState.phaseStartTime'] = Date.now(); 
-              } else {
-                  // Vai direto para o Dossiê/Votação
-                  updates.status = 'voting'; 
-                  updates['gameState.voteStartTime'] = Date.now();
-              }
+              // FIM DA RODADA: Sempre vai para a Pausa/Dossiê de 3 segundos
+              updates.status = 'discussing'; 
+              updates['gameState.phaseStartTime'] = Date.now(); 
           } else {
-              // Tempo individual exato de quem vai jogar agora
+              // Próximo jogador na mesma rodada: Inicia a contagem de tempo local dele
               updates['gameState.turnStartTime'] = Date.now();
           }
 
           await roomRef.update(updates);
       };
 
-      const handleNextPhaseFromReview = async (currentRoom, state) => {
-          const roomRef = getRoomRef(currentRoom.id);
-          if (state.currentRound < state.totalRounds) {
-              await roomRef.update({
-                  status: 'hinting',
-                  'gameState.currentRound': state.currentRound + 1,
-                  'gameState.currentTurnIndex': 0,
-                  'gameState.hints': {}, 
-                  'gameState.turnStartTime': Date.now()
-              }).catch(()=>{}); // Catch para evitar erros se outro jogador já atualizou
-          }
-      };
-
-      // RELÓGIO MESTRE BLINDADO - Qualquer jogador pode acionar o gatilho se o Host "dormir"
+      // RELÓGIO MESTRE BLINDADO - Gerencia os BOTS e as trocas de tela seguras
       useEffect(() => {
         if (!user || !room) return;
 
@@ -419,32 +400,48 @@
           const state = room.gameState;
           const isHost = room.hostId === user.uid;
 
-          // 1. Apenas o Host move os BOTS
-          if (room.status === 'hinting' && state?.turnStartTime) {
+          if (!state) return;
+
+          // 1. Apenas o Host move os BOTS no Hinting
+          if (room.status === 'hinting' && state.turnStartTime) {
              const currentUid = state.turnOrder[state.currentTurnIndex];
              const isBot = room.players[currentUid]?.isBot;
              
              if (isHost && isBot && !state.hints[currentUid]) {
                  const elapsed = now - state.turnStartTime;
                  const turnDuration = (room.settings.hintTime || 15) * 1000;
-                 if (elapsed >= (turnDuration - 3000)) {
-                     const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Já ouvi falar", "Tem cores"];
+                 if (elapsed >= (turnDuration - 2000)) { // O bot joga 2 segs antes do tempo acabar
+                     const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores"];
                      const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
                      await executeTurnAdvance(room.id, currentUid, botHint);
                  }
              }
           } 
-          // 2. Transição da Pausa (3s) para a nova rodada
-          // Todos checam, se o Host não fizer, outro jogador faz. Isso impede o travamento!
-          else if (room.status === 'discussing' && state?.phaseStartTime) {
+          // 2. Transição da Pausa (3s) para a nova rodada ou Votação Final
+          // SISTEMA ANTI-TRAVAMENTO: O host tenta com 3s, se ele cair/dormir, os outros jogadores disparam com 5s
+          else if (room.status === 'discussing' && state.phaseStartTime) {
              const elapsed = now - state.phaseStartTime;
-             const triggerDelay = isHost ? 3000 : 5000; // Host tenta em 3s, outros tentam em 5s caso o host caia.
+             const triggerDelay = isHost ? 3000 : 5000; 
+             
              if (elapsed >= triggerDelay) {
-                 await handleNextPhaseFromReview(room, state);
+                 if (state.currentRound < state.totalRounds) {
+                     await getRoomRef(room.id).update({
+                         status: 'hinting',
+                         'gameState.currentRound': state.currentRound + 1,
+                         'gameState.currentTurnIndex': 0,
+                         'gameState.hints': {},
+                         'gameState.turnStartTime': Date.now()
+                     }).catch(()=>{});
+                 } else {
+                     await getRoomRef(room.id).update({
+                         status: 'voting',
+                         'gameState.voteStartTime': Date.now()
+                     }).catch(()=>{});
+                 }
              }
           } 
-          // 3. Fim da Votação
-          else if (room.status === 'voting' && state?.voteStartTime) {
+          // 3. Fim do tempo da Votação
+          else if (room.status === 'voting' && state.voteStartTime) {
              const elapsed = now - state.voteStartTime;
              const voteDuration = (room.settings.voteTime || 60) * 1000;
              const triggerDelay = isHost ? voteDuration : voteDuration + 2000;
@@ -453,7 +450,7 @@
                  await getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
              }
 
-             // BOTS Votam (Apenas o Host calcula isso)
+             // BOTS Votam
              if (isHost) {
                  const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
                  bots.forEach(botUid => {
@@ -462,7 +459,7 @@
                          roomRef.get().then(doc => {
                              const d = doc.data();
                              if (!d.gameState.votes[botUid]) {
-                                 const numImpostors = d.settings.impostorsCount || 1;
+                                 const numImpostors = parseInt(d.settings.impostorsCount) || 1;
                                  const targets = Object.keys(d.players).filter(id => id !== botUid);
                                  
                                  const shuffled = targets.sort(() => Math.random() - 0.5);
@@ -567,7 +564,7 @@
 
         setIsStartingGame(true);
 
-        const requestedImpostors = room.settings.impostorsCount || 1;
+        const requestedImpostors = parseInt(room.settings.impostorsCount) || 1;
         const maxImpostors = Math.max(1, Math.floor(playerIds.length / 2)); 
         const actualImpostorsCount = Math.min(requestedImpostors, maxImpostors);
 
@@ -582,7 +579,6 @@
             availableWords = wordsDict;
         }
 
-        // NOVO: Aleatoriedade ultra-robusta usando Fisher-Yates com cryptoRandom
         for (let i = availableWords.length - 1; i > 0; i--) {
             const j = Math.floor(cryptoRandom() * (i + 1));
             [availableWords[i], availableWords[j]] = [availableWords[j], availableWords[i]];
@@ -620,6 +616,8 @@
         const roomRef = getRoomRef(room.id);
         const updatedVotes = { ...room.gameState.votes, [user.uid]: targetUidsArray };
         await roomRef.update({ 'gameState.votes': updatedVotes });
+        
+        // Se todo mundo votou, encerra na hora
         if (Object.keys(updatedVotes).length === Object.keys(room.players).length) {
           await roomRef.update({ status: 'finished' });
         }
@@ -899,7 +897,7 @@
       const isMyTurn = state.turnOrder[state.currentTurnIndex] === user.uid;
       const [hintInput, setHintInput] = useState('');
       
-      // Relógio estritamente local: Garante que TODO jogador tenha seus exatos 15s a partir de quando a vez é passada para ele.
+      // Relógio 100% NATIVO e individual: Reseta exatamente no momento da troca de turno
       const initialTime = parseInt(room.settings.hintTime) || 15;
       const [timeLeft, setTimeLeft] = useState(initialTime);
 
@@ -1002,28 +1000,31 @@
       );
     }
 
-    // TELA DE PAUSA (3s) ENTRE RODADAS (Cronômetro 100% individual)
+    // TELA DE PAUSA DE 3s RESTAURADA: Aparece em todo final de rodada
     function ReviewScreen({ room }) {
       const state = room.gameState;
+      // Cronômetro nativo de 3 segundos visual
       const [timeLeft, setTimeLeft] = useState(3);
       
       useEffect(() => {
         setTimeLeft(3);
         const int = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000);
         return () => clearInterval(int);
-      }, [state.currentRound]);
+      }, []);
+
+      const isLastRound = state.currentRound >= state.totalRounds;
 
       return (
         <div className="flex-1 flex flex-col relative animate-in slide-in-from-bottom-8 duration-500">
           <div className="pt-6 pb-6 text-center relative z-10 flex flex-col items-center">
             <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--color-accent)] mb-1">
-               Fim da Rodada {state.currentRound}
+               {isLastRound ? 'Fim das Rodadas' : `Fim da Rodada ${state.currentRound}`}
             </h2>
             <div className={`text-4xl font-black font-mono tracking-tighter drop-shadow-md text-white mb-2`}>
               00:0{timeLeft}
             </div>
             <p className="text-white/50 text-[11px] font-semibold uppercase tracking-widest">
-               Próxima rodada em...
+               {isLastRound ? 'Preparando votação final...' : 'Próxima rodada em...'}
             </p>
           </div>
 
@@ -1091,10 +1092,12 @@
       );
     }
 
-    // TELA DE VOTAÇÃO: Integrada com o Dossiê e Check visual para orientar clique
+    // TELA DE VOTAÇÃO: Timer blindado resolvido e botões de clique garantidos
     function VotingScreen({ room, user, submitVoteArray }) {
       const state = room.gameState;
       const initialTime = parseInt(room.settings.voteTime) || 60;
+      
+      // Cronômetro de Votação Nativo
       const [timeLeft, setTimeLeft] = useState(initialTime);
       
       const maxVotes = parseInt(room.settings.impostorsCount) || 1;
@@ -1180,7 +1183,7 @@
                             <span>{player.name} {isMe && <span className="text-[10px] text-white/40 uppercase tracking-widest ml-1">(Você)</span>}</span>
                         </div>
                         
-                        {/* CHECKBOX VISUAL: Check apagado se não selecionado, Check vivo se selecionado */}
+                        {/* ADICIONADO O CHECKBOX VISUAL APAGADO COMO PEDIDO */}
                         {!isMe && (
                             <div className={`w-7 h-7 flex items-center justify-center rounded-full shadow-lg border-2 transition-all duration-300 ${isSelected ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white' : 'bg-black/40 border-white/10 text-white/10 group-hover:border-white/30'}`}>
                                 <i className={`ph-bold ph-check ${isSelected ? 'text-base' : 'text-xs'}`}></i>
