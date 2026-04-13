@@ -445,11 +445,11 @@
           await roomRef.update(updates);
       };
 
-      // RELÓGIO MESTRE BLINDADO - Gerencia os BOTS, Timeout de Humanos e as trocas de tela
+      // RELÓGIO MESTRE BLINDADO - Apenas o Host controla o avanço do tempo global
       useEffect(() => {
         if (!user || !room) return;
 
-        const interval = setInterval(async () => {
+        const interval = setInterval(() => {
           const now = Date.now();
           const state = room.gameState;
           const isHost = room.hostId === user.uid;
@@ -465,14 +465,13 @@
                  const elapsed = now - state.turnStartTime;
                  const turnDuration = (room.settings.hintTime || 15) * 1000;
                  
-                 if (isHost && isBot && elapsed >= (turnDuration - 2000)) {
-                     const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores"];
-                     const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
-                     await executeTurnAdvance(room.id, currentUid, botHint);
-                 } else {
-                     const triggerDelay = isHost ? turnDuration : turnDuration + 2000;
-                     if (elapsed >= triggerDelay) {
-                         await executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado");
+                 if (isHost) {
+                     if (isBot && elapsed >= (turnDuration - 2000)) {
+                         const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores"];
+                         const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
+                         executeTurnAdvance(room.id, currentUid, botHint);
+                     } else if (elapsed >= turnDuration) {
+                         executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado");
                      }
                  }
              }
@@ -480,11 +479,10 @@
           // 2. Transição da Pausa (3s)
           else if (room.status === 'discussing' && state.phaseStartTime) {
              const elapsed = now - state.phaseStartTime;
-             const triggerDelay = isHost ? 3000 : 5000; 
              
-             if (elapsed >= triggerDelay) {
+             if (isHost && elapsed >= 3000) {
                  if (state.currentRound < state.totalRounds) {
-                     await getRoomRef(room.id).update({
+                     getRoomRef(room.id).update({
                          status: 'hinting',
                          'gameState.currentRound': state.currentRound + 1,
                          'gameState.currentTurnIndex': 0,
@@ -492,7 +490,7 @@
                          'gameState.turnStartTime': Date.now()
                      }).catch(()=>{});
                  } else {
-                     await getRoomRef(room.id).update({
+                     getRoomRef(room.id).update({
                          status: 'voting',
                          'gameState.voteStartTime': Date.now()
                      }).catch(()=>{});
@@ -503,10 +501,9 @@
           else if (room.status === 'voting' && state.voteStartTime) {
              const elapsed = now - state.voteStartTime;
              const voteDuration = (room.settings.voteTime || 60) * 1000;
-             const triggerDelay = isHost ? voteDuration : voteDuration + 2000;
 
-             if (elapsed >= triggerDelay) {
-                 await getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
+             if (isHost && elapsed >= voteDuration) {
+                 getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
              }
 
              if (isHost) {
