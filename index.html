@@ -6,16 +6,11 @@
   <title>O Infiltrado</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -411,8 +406,8 @@
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
-      // Função Blindada que avança o turno
-      const executeTurnAdvance = async (roomId, targetUid, hint = null) => {
+      // Função Blindada que avança o turno (CORREÇÃO DE PULO DUPLO)
+      const executeTurnAdvance = async (roomId, targetUid, hint = null, expectedTurnIndex = null) => {
           const roomRef = getRoomRef(roomId);
           const doc = await roomRef.get();
           if (!doc.exists) return;
@@ -423,7 +418,10 @@
           // 1. Verifica se ainda é o turno deste jogador
           if (state.currentTurnIndex >= state.turnOrder.length || state.turnOrder[state.currentTurnIndex] !== targetUid) return;
           
-          // 2. Verifica se ele JÁ submeteu uma dica neste turno (evita sobrescrever/pular a mais)
+          // 2. Trava de Índice: garante que não estamos processando um evento atrasado
+          if (expectedTurnIndex !== null && state.currentTurnIndex !== expectedTurnIndex) return;
+
+          // 3. Verifica se ele JÁ submeteu uma dica neste turno (evita sobrescrever)
           if (state.hints && state.hints[targetUid]) return;
 
           const updates = {};
@@ -444,8 +442,36 @@
           await roomRef.update(updates);
       };
 
+      // Função Exclusiva para o Host forçar o avanço caso ocorra qualquer travamento
+      const forceAdvancePhase = async () => {
+          if (!room || room.hostId !== user.uid) return;
+          const state = room.gameState;
+          const roomRef = getRoomRef(room.id);
+
+          try {
+              if (room.status === 'hinting') {
+                  const currentUid = state.turnOrder[state.currentTurnIndex];
+                  await executeTurnAdvance(room.id, currentUid, "⏳ Pulado pelo Host", state.currentTurnIndex);
+              } else if (room.status === 'discussing') {
+                  if (state.currentRound < state.totalRounds) {
+                       await roomRef.update({
+                           status: 'hinting',
+                           'gameState.currentRound': state.currentRound + 1,
+                           'gameState.currentTurnIndex': 0,
+                           'gameState.hints': {}
+                       });
+                  } else {
+                       await roomRef.update({ status: 'voting' });
+                  }
+              } else if (room.status === 'voting') {
+                  await roomRef.update({ status: 'finished' });
+              }
+          } catch (err) {
+              console.error("Erro ao forçar avanço:", err);
+          }
+      };
+
       // RELÓGIO MESTRE DE SEGURANÇA (Apenas Host - Failsafe)
-      // Funciona apenas como "seguro de vida" caso a pessoa da vez perca a internet ou feche a aba
       const masterClockRef = useRef({ phaseId: null, startedAt: 0 });
 
       useEffect(() => {
@@ -456,7 +482,6 @@
         const state = room.gameState;
         if (!state) return;
 
-        // Cria uma "Identidade Visual" para a fase atual (Qual rodada e qual jogador)
         const phaseId = room.status === 'hinting' 
             ? `hinting-${state.currentRound}-${state.currentTurnIndex}`
             : room.status === 'discussing' 
@@ -465,7 +490,6 @@
                     ? `voting` 
                     : `other`;
 
-        // Se a fase mudou, o cronômetro do Host é zerado.
         if (masterClockRef.current.phaseId !== phaseId) {
             masterClockRef.current = { phaseId, startedAt: Date.now() };
         }
@@ -478,21 +502,21 @@
                 const isBot = room.players[currentUid]?.isBot;
                 const hintTime = (parseInt(room.settings.hintTime) || 15) * 1000;
 
-                // Só interfere se a dica AINDA não existir
                 if (!state.hints || !state.hints[currentUid]) {
                     if (isBot && elapsed >= (hintTime - 2000)) {
                         const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores", "Legal"];
                         const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
-                        executeTurnAdvance(room.id, currentUid, botHint);
+                        executeTurnAdvance(room.id, currentUid, botHint, state.currentTurnIndex);
                     } 
-                    // GRACE PERIOD (Tempo de tolerância para Humanos): O Host só pula a pessoa DEPOIS do tempo dela acabar + 4 segundos extras
-                    else if (!isBot && elapsed >= (hintTime + 4000)) {
-                        executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado");
+                    // GRACE PERIOD AUMENTADO: O Host só pula a pessoa DEPOIS do tempo dela acabar + 10 segundos extras
+                    // Isso evita atropelar um jogador que teve pequeno lag de conexão.
+                    else if (!isBot && elapsed >= (hintTime + 10000)) {
+                        executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado", state.currentTurnIndex);
                     }
                 }
             } 
             else if (room.status === 'discussing') {
-                if (elapsed >= 5000) { // 5 segundos de leitura
+                if (elapsed >= 5000) { 
                      if (state.currentRound < state.totalRounds) {
                          getRoomRef(room.id).update({
                              status: 'hinting',
@@ -507,11 +531,10 @@
             } 
             else if (room.status === 'voting') {
                 const voteTime = (parseInt(room.settings.voteTime) || 60) * 1000;
-                if (elapsed >= (voteTime + 4000)) { // 4s de tolerância extra
+                if (elapsed >= (voteTime + 4000)) { 
                     getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
                 }
 
-                // Lógica de votação dos bots
                 const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
                 bots.forEach(botUid => {
                     if (elapsed > 5000 && (!state.votes || !state.votes[botUid]) && Math.random() < 0.2) { 
@@ -664,7 +687,8 @@
 
       const submitHint = async (hint) => {
         if (!hint.trim()) return;
-        await executeTurnAdvance(room.id, user.uid, hint);
+        // Passamos o index atual para a trava de segurança agir
+        await executeTurnAdvance(room.id, user.uid, hint, room.gameState.currentTurnIndex);
       };
 
       const submitVoteArray = async (targetUidsArray) => {
@@ -748,7 +772,7 @@
                 <GameContainer 
                     room={room} user={user} startGame={startGame} submitHint={submitHint} submitVoteArray={submitVoteArray} 
                     restartGame={restartGame} updateSetting={updateSetting} handleAddBot={handleAddBot} handleRemoveBot={handleRemoveBot}
-                    isStartingGame={isStartingGame} categoryTheme={categoryTheme}
+                    isStartingGame={isStartingGame} categoryTheme={categoryTheme} forceAdvancePhase={forceAdvancePhase}
                 />
               )}
             </div>
@@ -759,12 +783,13 @@
     }
 
     function GameContainer(props) {
+      const isHost = props.room.hostId === props.user.uid;
       switch (props.room.status) {
-        case 'lobby': return <LobbyScreen {...props} isHost={props.room.hostId === props.user.uid} />;
-        case 'hinting': return <HintingScreen {...props} />;
-        case 'discussing': return <ReviewScreen {...props} />;
-        case 'voting': return <VotingScreen {...props} />;
-        case 'finished': return <ResultScreen {...props} isHost={props.room.hostId === props.user.uid} />;
+        case 'lobby': return <LobbyScreen {...props} isHost={isHost} />;
+        case 'hinting': return <HintingScreen {...props} isHost={isHost} />;
+        case 'discussing': return <ReviewScreen {...props} isHost={isHost} />;
+        case 'voting': return <VotingScreen {...props} isHost={isHost} />;
+        case 'finished': return <ResultScreen {...props} isHost={isHost} />;
         default: return <div>Erro de estado.</div>;
       }
     }
@@ -842,7 +867,7 @@
       );
     }
 
-    function LobbyScreen({ room, isHost, startGame, updateSetting, user, handleAddBot, handleRemoveBot, isStartingGame, categoryTheme }) {
+    function LobbyScreen({ room, isHost, startGame, updateSetting, user, handleAddBot, handleRemoveBot, isStartingGame }) {
       const players = Object.entries(room.players);
       return (
         <div className="flex-1 flex flex-col animate-in slide-in-from-right duration-300">
@@ -970,7 +995,7 @@
       );
     }
 
-    function HintingScreen({ room, user, submitHint, categoryTheme }) {
+    function HintingScreen({ room, user, submitHint, isHost, forceAdvancePhase }) {
       const state = room.gameState;
       const isImpostor = state.impostorIds.includes(user.uid);
       const isMyTurn = state.turnOrder[state.currentTurnIndex] === user.uid;
@@ -982,10 +1007,8 @@
       const themeName = room.settings.categoryPreset;
       const currentTurnId = `${state.currentRound}-${state.currentTurnIndex}`;
       
-      // Controla se a pessoa já forçou o próprio envio por esgotamento
       const autoSubmitRef = useRef(null);
 
-      // RELÓGIO INDIVIDUAL (Cada pessoa cuida do próprio tempo com exatidão)
       useEffect(() => {
         setTimeLeft(initialTime);
         const startTime = Date.now();
@@ -996,7 +1019,6 @@
 
             if (remaining <= 0) {
                 setTimeLeft(0);
-                // Se o tempo da pessoa acabar e ela for a jogadora da vez, ELA mesma diz "Acabou meu tempo".
                 if (isMyTurn && autoSubmitRef.current !== currentTurnId) {
                     autoSubmitRef.current = currentTurnId;
                     submitHint("⏳ Tempo Esgotado");
@@ -1043,8 +1065,15 @@
               <h3 className="font-bold text-lg flex items-center gap-2">
                 Rodada <span className="text-[var(--color-accent)]">{state.currentRound}</span><span className="text-white/30 text-sm">/ {state.totalRounds}</span>
               </h3>
-              <div className={`px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 5 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
-                 {formatTimeDisplay(timeLeft)}
+              <div className="flex items-center gap-2">
+                  {isHost && (
+                      <button onClick={forceAdvancePhase} className="bg-red-500/20 text-red-300 border border-red-500/50 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-wider hover:bg-red-500/40 transition shadow-lg flex items-center gap-1">
+                          <i className="ph-bold ph-fast-forward"></i> Pular
+                      </button>
+                  )}
+                  <div className={`px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 5 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
+                     {formatTimeDisplay(timeLeft)}
+                  </div>
               </div>
             </div>
 
@@ -1056,7 +1085,7 @@
                 const isThisTurn = idx === state.currentTurnIndex;
                 const hasPlayed = idx < state.currentTurnIndex;
                 const hintText = state.hints[uid];
-                const isTimeout = hintText === "⏳ Tempo Esgotado";
+                const isTimeout = hintText && hintText.includes("⏳");
                 
                 return (
                   <div key={uid} className={`relative p-4 rounded-2xl transition-all z-10 flex items-center gap-4 ${isThisTurn ? 'bg-white/10 border border-white/20 shadow-lg scale-[1.02]' : 'bg-transparent border border-transparent'}`}>
@@ -1072,7 +1101,7 @@
                       
                       {hasPlayed && hintText ? (
                         <div className={`font-medium text-lg leading-tight mt-0.5 ${isTimeout ? 'text-red-400 text-sm italic' : 'text-white'}`}>
-                            {isTimeout ? hintText : `"${hintText}"`}
+                          {isTimeout ? hintText : `"${hintText}"`}
                         </div>
                       ) : isThisTurn ? (
                         <div className="text-[var(--color-accent)] font-semibold text-sm mt-0.5 flex items-center gap-2">Pensando <span className="flex gap-0.5"><span className="animate-bounce">.</span><span className="animate-bounce delay-100">.</span><span className="animate-bounce delay-200">.</span></span></div>
@@ -1101,7 +1130,7 @@
       );
     }
 
-    function ReviewScreen({ room }) {
+    function ReviewScreen({ room, isHost, forceAdvancePhase }) {
       const state = room.gameState;
       const [timeLeft, setTimeLeft] = useState(5);
       
@@ -1126,9 +1155,14 @@
             <div className={`text-4xl font-black font-mono tracking-tighter drop-shadow-md text-white mb-2`}>
               00:0{timeLeft}
             </div>
-            <p className="text-white/50 text-[11px] font-semibold uppercase tracking-widest">
+            <p className="text-white/50 text-[11px] font-semibold uppercase tracking-widest mb-1">
                {isLastRound ? 'Preparando votação final...' : 'Próxima rodada em...'}
             </p>
+            {isHost && (
+                <button onClick={forceAdvancePhase} className="mt-2 bg-white/10 text-white border border-white/20 px-4 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-wider hover:bg-white/20 transition flex items-center gap-2 shadow-lg">
+                    <i className="ph-bold ph-fast-forward"></i> Avançar Agora
+                </button>
+            )}
           </div>
 
           <div className="glass-card flex-1 w-full p-6 relative flex flex-col overflow-hidden">
@@ -1166,7 +1200,9 @@
                     </div>
 
                     <div className="flex flex-col gap-2 pl-2">
-                        {pastHints.map((hint, hIndex) => (
+                        {pastHints.map((hint, hIndex) => {
+                             const isTimeout = hint && hint.includes("⏳");
+                             return (
                              <div 
                                 key={hIndex} 
                                 className="flex items-start gap-3"
@@ -1180,11 +1216,12 @@
                                 <span className="mt-0.5 text-[10px] font-black uppercase text-[var(--color-accent)] bg-[var(--color-accent)]/10 px-2 py-0.5 rounded-md border border-[var(--color-accent)]/20 shrink-0 shadow-[0_0_10px_rgba(var(--color-accent),0.2)]">
                                     R{hIndex + 1}
                                 </span>
-                                <span className={`font-medium text-base leading-tight ${hint === "⏳ Tempo Esgotado" ? 'text-red-400 text-sm italic' : 'text-white/90'}`}>
-                                    {hint === "⏳ Tempo Esgotado" ? hint : `"${hint}"`}
+                                <span className={`font-medium text-base leading-tight ${isTimeout ? 'text-red-400 text-sm italic' : 'text-white/90'}`}>
+                                    {isTimeout ? hint : `"${hint}"`}
                                 </span>
                              </div>
-                        ))}
+                             );
+                        })}
                     </div>
                   </div>
                 );
@@ -1195,7 +1232,7 @@
       );
     }
 
-    function VotingScreen({ room, user, submitVoteArray }) {
+    function VotingScreen({ room, user, submitVoteArray, isHost, forceAdvancePhase }) {
       const state = room.gameState;
       const initialTime = parseInt(room.settings.voteTime) || 60;
       const [timeLeft, setTimeLeft] = useState(initialTime);
@@ -1244,8 +1281,15 @@
                  Selecione {maxVotes} suspeito{maxVotes > 1 ? 's' : ''}
              </p>
              
-             <div className={`mt-3 inline-block px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 10 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
-                 {formatTimeDisplay(timeLeft)}
+             <div className="flex items-center justify-center gap-2 mt-3">
+                 {isHost && (
+                     <button onClick={forceAdvancePhase} className="bg-red-500/20 text-red-300 border border-red-500/50 px-3 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-wider hover:bg-red-500/40 transition shadow-lg flex items-center gap-1">
+                         <i className="ph-bold ph-fast-forward"></i> Encerrar
+                     </button>
+                 )}
+                 <div className={`px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 10 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
+                     {formatTimeDisplay(timeLeft)}
+                 </div>
              </div>
           </div>
 
@@ -1295,7 +1339,9 @@
                     </div>
 
                     <div className="flex flex-col gap-2 pl-2">
-                        {pastHints.map((hint, hIndex) => (
+                        {pastHints.map((hint, hIndex) => {
+                             const isTimeout = hint && hint.includes("⏳");
+                             return (
                              <div 
                                 key={hIndex} 
                                 className="flex items-start gap-3"
@@ -1309,11 +1355,12 @@
                                 <span className={`mt-0.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-md border shrink-0 ${isSelected ? 'bg-[var(--color-accent)] text-white border-white/20' : 'text-[var(--color-accent)] bg-[var(--color-accent)]/10 border-[var(--color-accent)]/20 shadow-[0_0_10px_rgba(var(--color-accent),0.2)]'}`}>
                                     R{hIndex + 1}
                                 </span>
-                                <span className={`font-medium text-base leading-tight ${hint === "⏳ Tempo Esgotado" ? 'text-red-400 text-sm italic' : 'text-white/90'}`}>
-                                    {hint === "⏳ Tempo Esgotado" ? hint : `"${hint}"`}
+                                <span className={`font-medium text-base leading-tight ${isTimeout ? 'text-red-400 text-sm italic' : 'text-white/90'}`}>
+                                    {isTimeout ? hint : `"${hint}"`}
                                 </span>
                              </div>
-                        ))}
+                             );
+                        })}
                     </div>
                   </button>
                 );
