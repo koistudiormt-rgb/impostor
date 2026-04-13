@@ -5,23 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>O Infiltrado</title>
 
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Google Fonts: Poppins -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <!-- Phosphor Icons -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
-  <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Babel -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Firebase (Compatibilidade) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -222,6 +216,13 @@
         return db.collection('rooms').doc(roomId);
     };
 
+    // Função utilitária para formatar tempo (MM:SS)
+    const formatTimeDisplay = (totalSeconds) => {
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const s = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    };
+
     // ==========================================================
     // 2. DICIONÁRIO COMPLETO E EXPANDIDO
     // ==========================================================
@@ -391,7 +392,7 @@
           await roomRef.update(updates);
       };
 
-      // RELÓGIO MESTRE BLINDADO - Gerencia os BOTS e as trocas de tela seguras
+      // RELÓGIO MESTRE BLINDADO - Gerencia os BOTS, Timeout de Humanos e as trocas de tela
       useEffect(() => {
         if (!user || !room) return;
 
@@ -402,23 +403,31 @@
 
           if (!state) return;
 
-          // 1. Apenas o Host move os BOTS no Hinting
+          // 1. Move BOTS ou pula a vez do jogador que perdeu o tempo (Auto-Skip)
           if (room.status === 'hinting' && state.turnStartTime) {
              const currentUid = state.turnOrder[state.currentTurnIndex];
              const isBot = room.players[currentUid]?.isBot;
              
-             if (isHost && isBot && !state.hints[currentUid]) {
+             if (!state.hints[currentUid]) {
                  const elapsed = now - state.turnStartTime;
                  const turnDuration = (room.settings.hintTime || 15) * 1000;
-                 if (elapsed >= (turnDuration - 2000)) { // O bot joga 2 segs antes do tempo acabar
+                 
+                 if (isHost && isBot && elapsed >= (turnDuration - 2000)) {
+                     // O bot joga 2 segs antes do tempo acabar
                      const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores"];
                      const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
                      await executeTurnAdvance(room.id, currentUid, botHint);
+                 } else {
+                     // NOVO: Punição de Tempo Esgotado para Humanos (Auto-Skip)
+                     // O host checa exatamente no limite. Se o host cair, os outros disparam 2s depois.
+                     const triggerDelay = isHost ? turnDuration : turnDuration + 2000;
+                     if (elapsed >= triggerDelay) {
+                         await executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado");
+                     }
                  }
              }
           } 
           // 2. Transição da Pausa (3s) para a nova rodada ou Votação Final
-          // SISTEMA ANTI-TRAVAMENTO: O host tenta com 3s, se ele cair/dormir, os outros jogadores disparam com 5s
           else if (room.status === 'discussing' && state.phaseStartTime) {
              const elapsed = now - state.phaseStartTime;
              const triggerDelay = isHost ? 3000 : 5000; 
@@ -867,8 +876,11 @@
                     <select disabled={!isHost} value={room.settings.voteTime || 60} onChange={e => updateSetting('voteTime', parseInt(e.target.value))} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm text-center font-medium disabled:opacity-50">
                       <option value={30}>30s</option>
                       <option value={45}>45s</option>
-                      <option value={60}>60s</option>
-                      <option value={90}>90s</option>
+                      <option value={60}>1m</option>
+                      <option value={90}>1m 30s</option>
+                      <option value={120}>2m</option>
+                      <option value={150}>2m 30s</option>
+                      <option value={180}>3m</option>
                     </select>
                   </div>
                 </div>
@@ -946,7 +958,7 @@
                 Rodada <span className="text-[var(--color-accent)]">{state.currentRound}</span><span className="text-white/30 text-sm">/ {state.totalRounds}</span>
               </h3>
               <div className={`px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 5 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
-                 00:{timeLeft.toString().padStart(2, '0')}
+                 {formatTimeDisplay(timeLeft)}
               </div>
             </div>
 
@@ -958,6 +970,8 @@
                 const isThisTurn = idx === state.currentTurnIndex;
                 const hasPlayed = idx < state.currentTurnIndex;
                 const pastHints = state.allHints?.[uid] || [];
+                const hintText = state.hints[uid];
+                const isTimeout = hintText === "⏳ Tempo Esgotado";
                 
                 return (
                   <div key={uid} className={`relative p-4 rounded-2xl transition-all z-10 flex items-center gap-4 ${isThisTurn ? 'bg-white/10 border border-white/20 shadow-lg scale-[1.02]' : 'bg-transparent border border-transparent'}`}>
@@ -971,15 +985,17 @@
                           {player?.name}
                       </div>
                       
-                      {hasPlayed && state.hints[uid] ? (
-                        <div className="text-white font-medium text-lg leading-tight mt-0.5">"{state.hints[uid]}"</div>
+                      {hasPlayed && hintText ? (
+                        <div className={`font-medium text-lg leading-tight mt-0.5 ${isTimeout ? 'text-red-400 text-sm italic' : 'text-white'}`}>
+                            {isTimeout ? hintText : `"${hintText}"`}
+                        </div>
                       ) : isThisTurn ? (
                         <div className="text-[var(--color-accent)] font-semibold text-sm mt-0.5 flex items-center gap-2">Pensando <span className="flex gap-0.5"><span className="animate-bounce">.</span><span className="animate-bounce delay-100">.</span><span className="animate-bounce delay-200">.</span></span></div>
                       ) : (
                         <div className="text-white/30 font-medium text-sm mt-0.5">Aguardando</div>
                       )}
                     </div>
-                    {hasPlayed && <div className="text-emerald-400 mr-2 bg-emerald-400/10 p-1.5 rounded-full"><i className="ph-bold ph-check"></i></div>}
+                    {hasPlayed && <div className={`${isTimeout ? 'text-red-500 bg-red-500/10' : 'text-emerald-400 bg-emerald-400/10'} mr-2 p-1.5 rounded-full`}><i className={`ph-bold ${isTimeout ? 'ph-x' : 'ph-check'}`}></i></div>}
                   </div>
                 );
               })}
@@ -1077,8 +1093,8 @@
                                 <span className="mt-0.5 text-[10px] font-black uppercase text-[var(--color-accent)] bg-[var(--color-accent)]/10 px-2 py-0.5 rounded-md border border-[var(--color-accent)]/20 shrink-0 shadow-[0_0_10px_rgba(var(--color-accent),0.2)]">
                                     R{hIndex + 1}
                                 </span>
-                                <span className="text-white/90 font-medium text-base leading-tight">
-                                    "{hint}"
+                                <span className={`font-medium text-base leading-tight ${hint === "⏳ Tempo Esgotado" ? 'text-red-400 text-sm italic' : 'text-white/90'}`}>
+                                    {hint === "⏳ Tempo Esgotado" ? hint : `"${hint}"`}
                                 </span>
                              </div>
                         ))}
@@ -1141,7 +1157,7 @@
              </p>
              
              <div className={`mt-3 inline-block px-4 py-1.5 rounded-full font-mono font-bold text-sm border ${timeLeft <= 10 ? 'border-red-500/50 bg-red-500/20 text-red-300 animate-pulse' : 'border-white/10 bg-black/20'}`}>
-                 00:{timeLeft.toString().padStart(2, '0')}
+                 {formatTimeDisplay(timeLeft)}
              </div>
           </div>
 
@@ -1183,7 +1199,7 @@
                             <span>{player.name} {isMe && <span className="text-[10px] text-white/40 uppercase tracking-widest ml-1">(Você)</span>}</span>
                         </div>
                         
-                        {/* ADICIONADO O CHECKBOX VISUAL APAGADO COMO PEDIDO */}
+                        {/* CHECKBOX VISUAL APAGADO COMO PEDIDO */}
                         {!isMe && (
                             <div className={`w-7 h-7 flex items-center justify-center rounded-full shadow-lg border-2 transition-all duration-300 ${isSelected ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white' : 'bg-black/40 border-white/10 text-white/10 group-hover:border-white/30'}`}>
                                 <i className={`ph-bold ph-check ${isSelected ? 'text-base' : 'text-xs'}`}></i>
@@ -1206,8 +1222,8 @@
                                 <span className={`mt-0.5 text-[10px] font-black uppercase px-2 py-0.5 rounded-md border shrink-0 ${isSelected ? 'bg-[var(--color-accent)] text-white border-white/20' : 'text-[var(--color-accent)] bg-[var(--color-accent)]/10 border-[var(--color-accent)]/20 shadow-[0_0_10px_rgba(var(--color-accent),0.2)]'}`}>
                                     R{hIndex + 1}
                                 </span>
-                                <span className="text-white/90 font-medium text-base leading-tight">
-                                    "{hint}"
+                                <span className={`font-medium text-base leading-tight ${hint === "⏳ Tempo Esgotado" ? 'text-red-400 text-sm italic' : 'text-white/90'}`}>
+                                    {hint === "⏳ Tempo Esgotado" ? hint : `"${hint}"`}
                                 </span>
                              </div>
                         ))}
