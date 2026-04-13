@@ -411,13 +411,20 @@
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
+      // Função Blindada que avança o turno
       const executeTurnAdvance = async (roomId, targetUid, hint = null) => {
           const roomRef = getRoomRef(roomId);
           const doc = await roomRef.get();
+          if (!doc.exists) return;
           const d = doc.data();
           const state = d.gameState;
 
+          // Trava Dupla contra Pulos Duplos:
+          // 1. Verifica se ainda é o turno deste jogador
           if (state.currentTurnIndex >= state.turnOrder.length || state.turnOrder[state.currentTurnIndex] !== targetUid) return;
+          
+          // 2. Verifica se ele JÁ submeteu uma dica neste turno (evita sobrescrever/pular a mais)
+          if (state.hints && state.hints[targetUid]) return;
 
           const updates = {};
           if (hint) {
@@ -437,101 +444,97 @@
           await roomRef.update(updates);
       };
 
-      // RELÓGIO MESTRE 100% BLINDADO (Local Host Timer)
-      // Resolve o erro de dessincronização de relógios dos aparelhos
-      const hostTimerRef = useRef({ status: null, turnIndex: null, round: null, startedAt: 0 });
+      // RELÓGIO MESTRE DE SEGURANÇA (Apenas Host - Failsafe)
+      // Funciona apenas como "seguro de vida" caso a pessoa da vez perca a internet ou feche a aba
+      const masterClockRef = useRef({ phaseId: null, startedAt: 0 });
 
       useEffect(() => {
         if (!user || !room) return;
-
         const isHost = room.hostId === user.uid;
-        if (!isHost) return; // Apenas o Host gerencia o avanço de tempo para evitar pulos acidentais
+        if (!isHost) return;
 
         const state = room.gameState;
         if (!state) return;
 
-        // Toda vez que o estado do jogo muda para o Host, ele zera o cronômetro localmente
-        if (hostTimerRef.current.status !== room.status ||
-            hostTimerRef.current.turnIndex !== state.currentTurnIndex ||
-            hostTimerRef.current.round !== state.currentRound) {
-            
-            hostTimerRef.current = {
-                status: room.status,
-                turnIndex: state.currentTurnIndex,
-                round: state.currentRound,
-                startedAt: Date.now() // Hora local do Host (blindado contra outros celulares)
-            };
+        // Cria uma "Identidade Visual" para a fase atual (Qual rodada e qual jogador)
+        const phaseId = room.status === 'hinting' 
+            ? `hinting-${state.currentRound}-${state.currentTurnIndex}`
+            : room.status === 'discussing' 
+                ? `discussing-${state.currentRound}`
+                : room.status === 'voting' 
+                    ? `voting` 
+                    : `other`;
+
+        // Se a fase mudou, o cronômetro do Host é zerado.
+        if (masterClockRef.current.phaseId !== phaseId) {
+            masterClockRef.current = { phaseId, startedAt: Date.now() };
         }
 
         const interval = setInterval(() => {
-          const now = Date.now();
-          const elapsed = now - hostTimerRef.current.startedAt;
+            const elapsed = Date.now() - masterClockRef.current.startedAt;
 
-          // 1. Fase de Dicas (Hinting)
-          if (room.status === 'hinting') {
-             const currentUid = state.turnOrder[state.currentTurnIndex];
-             const isBot = room.players[currentUid]?.isBot;
-             
-             if (!state.hints[currentUid]) {
-                 const turnDuration = (room.settings.hintTime || 15) * 1000;
-                 
-                 if (isBot && elapsed >= (turnDuration - 2000)) {
-                     const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores"];
-                     const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
-                     executeTurnAdvance(room.id, currentUid, botHint);
-                 } else if (elapsed >= turnDuration) {
-                     executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado");
-                 }
-             }
-          } 
-          // 2. Transição da Pausa (3s)
-          else if (room.status === 'discussing') {
-             if (elapsed >= 3000) {
-                 if (state.currentRound < state.totalRounds) {
-                     getRoomRef(room.id).update({
-                         status: 'hinting',
-                         'gameState.currentRound': state.currentRound + 1,
-                         'gameState.currentTurnIndex': 0,
-                         'gameState.hints': {}
-                     }).catch(()=>{});
-                 } else {
-                     getRoomRef(room.id).update({
-                         status: 'voting'
-                     }).catch(()=>{});
-                 }
-             }
-          } 
-          // 3. Fim do tempo da Votação
-          else if (room.status === 'voting') {
-             const voteDuration = (room.settings.voteTime || 60) * 1000;
+            if (room.status === 'hinting') {
+                const currentUid = state.turnOrder[state.currentTurnIndex];
+                const isBot = room.players[currentUid]?.isBot;
+                const hintTime = (parseInt(room.settings.hintTime) || 15) * 1000;
 
-             if (elapsed >= voteDuration) {
-                 getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
-             }
+                // Só interfere se a dica AINDA não existir
+                if (!state.hints || !state.hints[currentUid]) {
+                    if (isBot && elapsed >= (hintTime - 2000)) {
+                        const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores", "Legal"];
+                        const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
+                        executeTurnAdvance(room.id, currentUid, botHint);
+                    } 
+                    // GRACE PERIOD (Tempo de tolerância para Humanos): O Host só pula a pessoa DEPOIS do tempo dela acabar + 4 segundos extras
+                    else if (!isBot && elapsed >= (hintTime + 4000)) {
+                        executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado");
+                    }
+                }
+            } 
+            else if (room.status === 'discussing') {
+                if (elapsed >= 5000) { // 5 segundos de leitura
+                     if (state.currentRound < state.totalRounds) {
+                         getRoomRef(room.id).update({
+                             status: 'hinting',
+                             'gameState.currentRound': state.currentRound + 1,
+                             'gameState.currentTurnIndex': 0,
+                             'gameState.hints': {}
+                         }).catch(()=>{});
+                     } else {
+                         getRoomRef(room.id).update({ status: 'voting' }).catch(()=>{});
+                     }
+                }
+            } 
+            else if (room.status === 'voting') {
+                const voteTime = (parseInt(room.settings.voteTime) || 60) * 1000;
+                if (elapsed >= (voteTime + 4000)) { // 4s de tolerância extra
+                    getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
+                }
 
-             // Lógica de votação dos bots
-             const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
-             bots.forEach(botUid => {
-                 if (!state.votes[botUid] && Math.random() < 0.2) { 
-                     const roomRef = getRoomRef(room.id);
-                     roomRef.get().then(doc => {
-                         const d = doc.data();
-                         if (!d.gameState.votes[botUid]) {
-                             const numImpostors = parseInt(d.settings.impostorsCount) || 1;
-                             const targets = Object.keys(d.players).filter(id => id !== botUid);
-                             const shuffled = targets.sort(() => Math.random() - 0.5);
-                             const selectedTargets = shuffled.slice(0, numImpostors);
-                             const newVotes = { ...d.gameState.votes, [botUid]: selectedTargets };
-                             roomRef.update({ 'gameState.votes': newVotes }).then(() => {
-                                 if (Object.keys(newVotes).length === Object.keys(d.players).length) {
-                                     roomRef.update({ status: 'finished' }).catch(()=>{});
-                                 }
-                             });
-                         }
-                     });
-                 }
-             });
-          }
+                // Lógica de votação dos bots
+                const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
+                bots.forEach(botUid => {
+                    if (elapsed > 5000 && (!state.votes || !state.votes[botUid]) && Math.random() < 0.2) { 
+                        const roomRef = getRoomRef(room.id);
+                        roomRef.get().then(doc => {
+                            const d = doc.data();
+                            if (!d.gameState.votes || !d.gameState.votes[botUid]) {
+                                const numImpostors = parseInt(d.settings.impostorsCount) || 1;
+                                const targets = Object.keys(d.players).filter(id => id !== botUid);
+                                const shuffled = targets.sort(() => Math.random() - 0.5);
+                                const selectedTargets = shuffled.slice(0, numImpostors);
+                                const currentVotes = d.gameState.votes || {};
+                                const newVotes = { ...currentVotes, [botUid]: selectedTargets };
+                                roomRef.update({ 'gameState.votes': newVotes }).then(() => {
+                                    if (Object.keys(newVotes).length === Object.keys(d.players).length) {
+                                        roomRef.update({ status: 'finished' }).catch(()=>{});
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
         }, 1000);
         return () => clearInterval(interval);
       }, [room, user]);
@@ -977,14 +980,34 @@
       const [timeLeft, setTimeLeft] = useState(initialTime);
 
       const themeName = room.settings.categoryPreset;
+      const currentTurnId = `${state.currentRound}-${state.currentTurnIndex}`;
+      
+      // Controla se a pessoa já forçou o próprio envio por esgotamento
+      const autoSubmitRef = useRef(null);
 
+      // RELÓGIO INDIVIDUAL (Cada pessoa cuida do próprio tempo com exatidão)
       useEffect(() => {
         setTimeLeft(initialTime);
+        const startTime = Date.now();
+
         const int = setInterval(() => {
-            setTimeLeft(prev => Math.max(0, prev - 1));
+            const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+            const remaining = initialTime - elapsedSeconds;
+
+            if (remaining <= 0) {
+                setTimeLeft(0);
+                // Se o tempo da pessoa acabar e ela for a jogadora da vez, ELA mesma diz "Acabou meu tempo".
+                if (isMyTurn && autoSubmitRef.current !== currentTurnId) {
+                    autoSubmitRef.current = currentTurnId;
+                    submitHint("⏳ Tempo Esgotado");
+                }
+            } else {
+                setTimeLeft(remaining);
+            }
         }, 1000);
+
         return () => clearInterval(int);
-      }, [state.currentTurnIndex, initialTime]);
+      }, [currentTurnId, initialTime, isMyTurn]);
 
       return (
         <div className="flex-1 flex flex-col relative animate-in zoom-in-95 duration-500">
@@ -1080,11 +1103,15 @@
 
     function ReviewScreen({ room }) {
       const state = room.gameState;
-      const [timeLeft, setTimeLeft] = useState(3);
+      const [timeLeft, setTimeLeft] = useState(5);
       
       useEffect(() => {
-        setTimeLeft(3);
-        const int = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000);
+        setTimeLeft(5);
+        const startTime = Date.now();
+        const int = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            setTimeLeft(Math.max(0, 5 - elapsed));
+        }, 1000);
         return () => clearInterval(int);
       }, []);
 
@@ -1181,7 +1208,11 @@
 
       useEffect(() => {
         setTimeLeft(initialTime);
-        const int = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000);
+        const startTime = Date.now();
+        const int = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            setTimeLeft(Math.max(0, initialTime - elapsed));
+        }, 1000);
         return () => clearInterval(int);
       }, [initialTime]);
 
