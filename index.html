@@ -316,7 +316,7 @@
 
     const generateRoomCode = () => Math.random().toString(36).substring(2, 6).toUpperCase();
 
-    // Sorteio criptográfico ultra-aleatório para evitar padrões de repetição do navegador
+    // Sorteio criptográfico ultra-aleatório
     const cryptoRandom = () => {
         const array = new Uint32Array(1);
         window.crypto.getRandomValues(array);
@@ -326,8 +326,64 @@
     const { useState, useEffect, useRef } = React;
 
     // ==========================================================
-    // 3. COMPONENTE PRINCIPAL (APP)
+    // 3. COMPONENTES: REGRAS E APP
     // ==========================================================
+
+    function RulesModal({ onClose }) {
+      return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass-card w-full max-w-sm rounded-[2rem] p-6 relative flex flex-col gap-4 animate-in zoom-in-95 duration-300 shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10">
+            
+            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 w-8 h-8 rounded-full flex items-center justify-center">
+              <i className="ph-bold ph-x text-lg"></i>
+            </button>
+            
+            <div className="flex items-center gap-3 mb-2 mt-1">
+              <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)]/20 flex items-center justify-center border border-[var(--color-accent)]/30">
+                <i className="ph-fill ph-book-open text-[var(--color-accent)] text-xl"></i>
+              </div>
+              <h2 className="text-xl font-bold text-white tracking-tight">Como Jogar</h2>
+            </div>
+
+            <div className="space-y-5 text-sm text-white/80 overflow-y-auto max-h-[60vh] no-scrollbar pr-1 pb-2">
+              <div className="space-y-1.5">
+                <h3 className="text-[var(--color-accent)] font-bold uppercase tracking-widest text-[10px]">1. A Palavra Secreta</h3>
+                <p className="leading-relaxed">No início da partida, todos os jogadores recebem a mesma palavra secreta baseada no tema da sala. <span className="font-semibold text-white">Porém, os Infiltrados não recebem nada!</span></p>
+              </div>
+              
+              <div className="space-y-1.5">
+                <h3 className="text-[var(--color-accent)] font-bold uppercase tracking-widest text-[10px]">2. Dando Dicas</h3>
+                <p className="leading-relaxed">Na sua vez, escreva uma dica curta (ou uma única palavra) que tenha a ver com a palavra secreta. <span className="text-red-400 font-semibold">Cuidado:</span> não seja óbvio demais, senão os Infiltrados vão descobrir qual é a palavra!</p>
+              </div>
+              
+              <div className="space-y-1.5">
+                <h3 className="text-[var(--color-accent)] font-bold uppercase tracking-widest text-[10px]">3. Sobrevivência (Infiltrados)</h3>
+                <p className="leading-relaxed">Se o seu cartão disser "IMPOSTOR", aja naturalmente! Preste atenção nas dicas dos outros jogadores, tente deduzir o que é e dê uma dica genérica para se misturar.</p>
+              </div>
+              
+              <div className="space-y-1.5">
+                <h3 className="text-[var(--color-accent)] font-bold uppercase tracking-widest text-[10px]">4. Hora da Votação</h3>
+                <p className="leading-relaxed">Ao final das rodadas, o painel de votação se abre. Analisem o dossiê com as dicas de todos e votem em quem vocês acham que é o Infiltrado.</p>
+              </div>
+              
+              <div className="mt-2 p-4 rounded-2xl bg-white/5 border border-white/10 shadow-inner">
+                <h3 className="text-white font-bold text-xs uppercase tracking-widest mb-2 flex items-center gap-2">
+                  <i className="ph-fill ph-trophy text-yellow-400 text-lg"></i> Quem vence?
+                </h3>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  O grupo vence se a maioria dos votos acertar e eliminar os Infiltrados. Os Infiltrados vencem se passarem despercebidos até o fim!
+                </p>
+              </div>
+            </div>
+
+            <button onClick={onClose} className="w-full btn-gradient py-4 rounded-full font-bold text-white text-base mt-2 shadow-lg flex items-center justify-center gap-2">
+              <i className="ph-bold ph-check-circle"></i> Entendi, vamos jogar!
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     function App() {
       const [user, setUser] = useState(null);
       const [loadingAuth, setLoadingAuth] = useState(true);
@@ -360,7 +416,6 @@
         return () => unsubscribe();
       }, [user, currentRoomId]);
 
-      // FUNÇÃO MESTRE: Avanca o turno e define sempre o Dossiê (discussing) ao final de toda rodada.
       const executeTurnAdvance = async (roomId, targetUid, hint = null) => {
           const roomRef = getRoomRef(roomId);
           const doc = await roomRef.get();
@@ -381,11 +436,9 @@
           updates['gameState.currentTurnIndex'] = nextIndex;
 
           if (nextIndex >= state.turnOrder.length) {
-              // FIM DA RODADA: Sempre vai para a Pausa/Dossiê de 3 segundos
               updates.status = 'discussing'; 
               updates['gameState.phaseStartTime'] = Date.now(); 
           } else {
-              // Próximo jogador na mesma rodada: Inicia a contagem de tempo local dele
               updates['gameState.turnStartTime'] = Date.now();
           }
 
@@ -413,13 +466,10 @@
                  const turnDuration = (room.settings.hintTime || 15) * 1000;
                  
                  if (isHost && isBot && elapsed >= (turnDuration - 2000)) {
-                     // O bot joga 2 segs antes do tempo acabar
                      const genericHints = ["Sempre vejo", "As pessoas gostam", "Tem na TV", "Bem clássico", "Muito legal", "É popular", "Muitos conhecem", "Tem cores"];
                      const botHint = genericHints[Math.floor(Math.random() * genericHints.length)];
                      await executeTurnAdvance(room.id, currentUid, botHint);
                  } else {
-                     // NOVO: Punição de Tempo Esgotado para Humanos (Auto-Skip)
-                     // O host checa exatamente no limite. Se o host cair, os outros disparam 2s depois.
                      const triggerDelay = isHost ? turnDuration : turnDuration + 2000;
                      if (elapsed >= triggerDelay) {
                          await executeTurnAdvance(room.id, currentUid, "⏳ Tempo Esgotado");
@@ -427,7 +477,7 @@
                  }
              }
           } 
-          // 2. Transição da Pausa (3s) para a nova rodada ou Votação Final
+          // 2. Transição da Pausa (3s)
           else if (room.status === 'discussing' && state.phaseStartTime) {
              const elapsed = now - state.phaseStartTime;
              const triggerDelay = isHost ? 3000 : 5000; 
@@ -459,7 +509,6 @@
                  await getRoomRef(room.id).update({ status: 'finished' }).catch(()=>{});
              }
 
-             // BOTS Votam
              if (isHost) {
                  const bots = Object.keys(room.players).filter(id => room.players[id].isBot);
                  bots.forEach(botUid => {
@@ -626,7 +675,6 @@
         const updatedVotes = { ...room.gameState.votes, [user.uid]: targetUidsArray };
         await roomRef.update({ 'gameState.votes': updatedVotes });
         
-        // Se todo mundo votou, encerra na hora
         if (Object.keys(updatedVotes).length === Object.keys(room.players).length) {
           await roomRef.update({ status: 'finished' });
         }
@@ -725,8 +773,13 @@
     }
 
     function HomeScreen({ playerName, setPlayerName, roomCodeInput, setRoomCodeInput, handleCreateRoom, handleJoinRoom }) {
+      const [showRules, setShowRules] = useState(false);
+
       return (
-        <div className="flex-1 flex flex-col justify-center gap-8 animate-in fade-in duration-500">
+        <div className="flex-1 flex flex-col justify-center gap-8 animate-in fade-in duration-500 pb-4">
+          
+          {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
           <div className="flex justify-center items-center flex-col gap-4">
             <div className="w-32 h-32 rounded-[2rem] glass-card flex items-center justify-center shadow-2xl relative overflow-hidden">
                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
@@ -764,13 +817,30 @@
 
           </div>
           
-          <a href="https://discord.gg/8aemaeSRnb" target="_blank" rel="noopener noreferrer" className="glass-card bg-[#5865F2]/10 hover:bg-[#5865F2]/20 border border-[#5865F2]/30 p-4 rounded-2xl flex items-center justify-center gap-3 transition-all group shadow-[0_0_15px_rgba(88,101,242,0.15)]">
-            <i className="ph-fill ph-discord-logo text-[#5865F2] text-3xl group-hover:scale-110 transition-transform duration-300"></i>
-            <div className="text-left flex flex-col">
-              <span className="text-white font-bold text-sm leading-tight">Entrar no Discord</span>
-              <span className="text-[#5865F2] text-[10px] uppercase tracking-widest font-semibold">Jogue em Call de Voz</span>
-            </div>
-          </a>
+          <div className="flex flex-col gap-3">
+             <button onClick={() => setShowRules(true)} className="glass-card bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-2xl flex items-center justify-start gap-4 transition-all group">
+                <div className="w-10 h-10 rounded-xl bg-[var(--color-accent)]/20 flex items-center justify-center shrink-0 border border-[var(--color-accent)]/30 group-hover:scale-110 transition-transform duration-300">
+                   <i className="ph-fill ph-book-open text-[var(--color-accent)] text-xl"></i>
+                </div>
+                <div className="text-left flex flex-col">
+                  <span className="text-white font-bold text-sm leading-tight">Como Jogar</span>
+                  <span className="text-white/50 text-[10px] uppercase tracking-widest font-semibold">Regras e Objetivo</span>
+                </div>
+                <i className="ph-bold ph-caret-right text-white/30 ml-auto"></i>
+             </button>
+
+             <a href="https://discord.gg/8aemaeSRnb" target="_blank" rel="noopener noreferrer" className="glass-card bg-[#5865F2]/10 hover:bg-[#5865F2]/20 border border-[#5865F2]/30 p-4 rounded-2xl flex items-center justify-start gap-4 transition-all group shadow-[0_0_15px_rgba(88,101,242,0.15)]">
+                <div className="w-10 h-10 rounded-xl bg-[#5865F2]/20 flex items-center justify-center shrink-0 border border-[#5865F2]/30 group-hover:scale-110 transition-transform duration-300">
+                   <i className="ph-fill ph-discord-logo text-[#5865F2] text-xl"></i>
+                </div>
+                <div className="text-left flex flex-col">
+                  <span className="text-white font-bold text-sm leading-tight">Entrar no Discord</span>
+                  <span className="text-[#5865F2] text-[10px] uppercase tracking-widest font-semibold">Jogue em Call de Voz</span>
+                </div>
+                <i className="ph-bold ph-arrow-up-right text-[#5865F2]/50 ml-auto"></i>
+             </a>
+          </div>
+
         </div>
       );
     }
@@ -909,7 +979,6 @@
       const isMyTurn = state.turnOrder[state.currentTurnIndex] === user.uid;
       const [hintInput, setHintInput] = useState('');
       
-      // Relógio 100% NATIVO e individual: Reseta exatamente no momento da troca de turno
       const initialTime = parseInt(room.settings.hintTime) || 15;
       const [timeLeft, setTimeLeft] = useState(initialTime);
 
@@ -969,7 +1038,6 @@
                 const player = room.players[uid];
                 const isThisTurn = idx === state.currentTurnIndex;
                 const hasPlayed = idx < state.currentTurnIndex;
-                const pastHints = state.allHints?.[uid] || [];
                 const hintText = state.hints[uid];
                 const isTimeout = hintText === "⏳ Tempo Esgotado";
                 
@@ -1016,10 +1084,8 @@
       );
     }
 
-    // TELA DE PAUSA DE 3s RESTAURADA: Aparece em todo final de rodada
     function ReviewScreen({ room }) {
       const state = room.gameState;
-      // Cronômetro nativo de 3 segundos visual
       const [timeLeft, setTimeLeft] = useState(3);
       
       useEffect(() => {
@@ -1108,12 +1174,9 @@
       );
     }
 
-    // TELA DE VOTAÇÃO: Timer blindado resolvido e botões de clique garantidos
     function VotingScreen({ room, user, submitVoteArray }) {
       const state = room.gameState;
       const initialTime = parseInt(room.settings.voteTime) || 60;
-      
-      // Cronômetro de Votação Nativo
       const [timeLeft, setTimeLeft] = useState(initialTime);
       
       const maxVotes = parseInt(room.settings.impostorsCount) || 1;
@@ -1199,7 +1262,6 @@
                             <span>{player.name} {isMe && <span className="text-[10px] text-white/40 uppercase tracking-widest ml-1">(Você)</span>}</span>
                         </div>
                         
-                        {/* CHECKBOX VISUAL APAGADO COMO PEDIDO */}
                         {!isMe && (
                             <div className={`w-7 h-7 flex items-center justify-center rounded-full shadow-lg border-2 transition-all duration-300 ${isSelected ? 'bg-[var(--color-accent)] border-[var(--color-accent)] text-white' : 'bg-black/40 border-white/10 text-white/10 group-hover:border-white/30'}`}>
                                 <i className={`ph-bold ph-check ${isSelected ? 'text-base' : 'text-xs'}`}></i>
